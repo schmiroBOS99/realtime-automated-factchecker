@@ -148,4 +148,4 @@ This project is for academic/research purposes.
 
 ## 👤 Author
 
-[Maro Rodrigues]
+Maro Rodrigues
