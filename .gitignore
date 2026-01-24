@@ -19,11 +19,13 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+MANIFEST
 
 # Virtual Environment
 venv/
 ENV/
 env/
+.venv
 
 # IDE
 .vscode/
@@ -31,23 +33,50 @@ env/
 *.swp
 *.swo
 *~
-
-# Database
-*.db
-*.sqlite
-*.sqlite3
-
-# Logs
-*.log
-
-# OS
 .DS_Store
 Thumbs.db
 
-# Project specific
+# Database & Cache
+*.db
+*.sqlite
+*.sqlite3
 data/claim_cache.db
-*.zip
+
+# Logs
+*.log
+logs/
 
 # Temporary files
 *.tmp
 *.bak
+*.zip
+
+# Environment variables
+.env
+.env.local
+
+# ===== EXCLUDE FOR GITHUB =====
+# Documentation files (except README.md and EVALUATION.md)
+*.md
+!README.md
+!EVALUATION.md
+
+# Evaluation results and data
+results/
+data/eval/
+
+# Archive/old versions
+archive/
+
+# Project documentation (internal)
+CODE_*.md
+IMPROVEMENT_*.md
+PHASE_*.md
+PROJECT_STRUCTURE.md
+TEST_*.md
+PIPELINE_EXPLANATION.md
+
+# Evaluation scripts results (keep scripts, exclude outputs)
+scripts/eval/*.jsonl
+scripts/eval/*.txt
+scripts/eval/*.json
