@@ -1,0 +1,1191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FactChecker Realtime UI</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        
+        .input-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .input-group {
+            display: flex;
+            gap: 10px;
+        }
+        
+        #textInput {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        #sendButton {
+            padding: 12px 24px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        
+        #sendButton:hover {
+            background: #0056b3;
+        }
+        
+        #sendButton:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .status {
+            margin-top: 10px;
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        
+        .status.connected {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .status.disconnected {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .panels {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 20px;
+        }
+        
+        .panel {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .panel-header {
+            background: #f8f9fa;
+            padding: 15px;
+            border-bottom: 1px solid #dee2e6;
+            font-weight: 600;
+            color: #495057;
+        }
+        
+        .panel-content {
+            padding: 15px;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        
+        .transcript-item {
+            padding: 10px;
+            margin-bottom: 10px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            border-left: 3px solid #007bff;
+        }
+        
+        .transcript-item time {
+            font-size: 11px;
+            color: #6c757d;
+        }
+        
+        .claim-item {
+            padding: 12px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            border-left: 4px solid #ffc107;
+        }
+        
+        .claim-item.pending {
+            border-left-color: #ffc107;
+            background: #fff3cd;
+        }
+        
+        .claim-item.supported {
+            border-left-color: #28a745;
+            background: #d4edda;
+        }
+        
+        .claim-item.refuted {
+            border-left-color: #dc3545;
+            background: #f8d7da;
+        }
+        
+        .claim-item.nei {
+            border-left-color: #6c757d;
+            background: #e9ecef;
+        }
+        
+        .claim-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 8px;
+        }
+        
+        .claim-text {
+            font-weight: 500;
+            color: #212529;
+            margin-bottom: 4px;
+        }
+        
+        .claim-id {
+            font-size: 11px;
+            color: #6c757d;
+            font-family: monospace;
+        }
+        
+        .claim-status {
+            font-size: 12px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: 500;
+        }
+        
+        .claim-status.pending {
+            background: #ffc107;
+            color: #000;
+        }
+        
+        .claim-status.supported {
+            background: #28a745;
+            color: white;
+        }
+        
+        .claim-status.refuted {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .claim-status.nei {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .claim-confidence {
+            font-size: 11px;
+            color: #6c757d;
+            margin-top: 4px;
+        }
+        
+        .evidence-item {
+            padding: 12px;
+            margin-bottom: 10px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            border-left: 3px solid #17a2b8;
+        }
+        
+        .evidence-title {
+            font-weight: 600;
+            color: #007bff;
+            margin-bottom: 6px;
+        }
+        
+        .evidence-title a {
+            color: #007bff;
+            text-decoration: none;
+        }
+        
+        .evidence-title a:hover {
+            text-decoration: underline;
+        }
+        
+        .evidence-snippet {
+            font-size: 13px;
+            color: #495057;
+            margin-bottom: 6px;
+            line-height: 1.5;
+        }
+        
+        .evidence-source {
+            font-size: 11px;
+            color: #6c757d;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h1 style="margin: 0;">FactChecker Realtime UI</h1>
+            <div style="display: flex; gap: 10px;">
+                <button 
+                    id="clearCacheButton" 
+                    onclick="clearCache()"
+                    style="padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px;"
+                    title="Clear the claim cache"
+                >
+                    Clear Cache
+                </button>
+                <button 
+                    id="restartServerButton" 
+                    onclick="restartServer()"
+                    style="padding: 8px 16px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px;"
+                    title="Restart the uvicorn server"
+                >
+                    Restart Server
+                </button>
+            </div>
+        </div>
+        
+        <div class="input-section">
+            <div class="input-group">
+                <input 
+                    type="text" 
+                    id="textInput" 
+                    placeholder="Enter text to fact-check (e.g., 'Angela Merkel ist Bundeskanzlerin von Deutschland seit 2005.')"
+                    onkeypress="if(event.key === 'Enter') sendText()"
+                >
+                <button id="sendButton" onclick="sendText()">Send</button>
+                <button 
+                    id="listenButton" 
+                    onclick="toggleListening()"
+                    style="padding: 12px 24px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: 500;"
+                >
+                    🎤 Mithören
+                </button>
+            </div>
+            <div id="status" class="status disconnected">Disconnected</div>
+            <div id="listeningStatus" style="margin-top: 10px; padding: 8px; border-radius: 4px; font-size: 12px; display: none; background: #fff3cd; color: #856404;">
+                <strong>🎤 Aufnahme läuft...</strong> <span id="listeningText"></span>
+            </div>
+        </div>
+        
+        <div class="panels">
+            <div class="panel">
+                <div class="panel-header">Transcript</div>
+                <div class="panel-content" id="transcriptPanel">
+                    <div class="empty-state">No transcript yet</div>
+                </div>
+            </div>
+            
+            <div class="panel">
+                <div class="panel-header">Claims</div>
+                <div class="panel-content" id="claimsPanel">
+                    <div class="empty-state">No claims detected yet</div>
+                </div>
+            </div>
+            
+            <div class="panel">
+                <div class="panel-header">Evidence</div>
+                <div class="panel-content" id="evidencePanel">
+                    <div class="empty-state">No evidence yet</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let ws = null;
+        let reconnectAttempts = 0;
+        const maxReconnectAttempts = 5;
+        const claims = new Map(); // claim_id -> claim data
+        
+        // Audio recording state
+        let isListening = false;
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let recognition = null; // Web Speech API
+        let accumulatedTranscript = ''; // Accumulated transcript during recording
+        let lastFinalTime = null; // Timestamp of last final transcript
+        let pauseTimeout = null; // Timeout for detecting speech pauses
+        let pauseCheckInterval = null; // Continuous interval for checking pauses
+        let lastInterimUpdate = null; // Timestamp of last interim result update
+        let lastStableText = ''; // Last known stable transcript text (for change detection)
+        let lastTextChangeAt = null; // Timestamp when transcript text last actually changed
+        let periodInsertedForPause = false; // Flag to prevent duplicate period insertion
+        const PAUSE_DETECTION_MS = 500; // Detect pause after 500ms (modern transcription: syntactically complete sentence)
+        const INTERIM_PAUSE_MS = 500; // Detect pause in interim results after 500ms (syntactic completeness)
+        const ABORT_PAUSE_MS = 1000; // Abort signal: pause > 1 second mid-sentence (mark with --)
+        const PAUSE_CHECK_INTERVAL_MS = 50; // Check for pauses every 50ms (continuous monitoring - faster for better responsiveness)
+        
+        // Determine WebSocket URL
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/ws/live`;
+        console.log('WebSocket URL:', wsUrl);
+        
+        function connect() {
+            if (ws && ws.readyState === WebSocket.CONNECTING) {
+                console.log('WebSocket connection already in progress, skipping...');
+                return;
+            }
+            
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                console.log('WebSocket already connected');
+                return;
+            }
+            
+            console.log(`Connecting to WebSocket... (attempt ${reconnectAttempts + 1})`);
+            ws = new WebSocket(wsUrl);
+            
+            ws.onopen = () => {
+                console.log('WebSocket connected successfully');
+                reconnectAttempts = 0;
+                updateStatus(true);
+            };
+            
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    console.log('WebSocket message received:', data);
+                    handleEvent(data);
+                } catch (e) {
+                    console.error('Error parsing WebSocket message:', e, event.data);
+                }
+            };
+            
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                console.error('WebSocket state:', ws?.readyState);
+                updateStatus(false);
+            };
+            
+            ws.onclose = (event) => {
+                console.log('WebSocket disconnected', event.code, event.reason);
+                updateStatus(false);
+                
+                // Only reconnect if it wasn't a clean close and we haven't exceeded max attempts
+                if (event.code !== 1000 && reconnectAttempts < maxReconnectAttempts) {
+                    reconnectAttempts++;
+                    console.log(`Reconnecting in 2 seconds... (attempt ${reconnectAttempts}/${maxReconnectAttempts})`);
+                    setTimeout(connect, 2000);
+                } else if (reconnectAttempts >= maxReconnectAttempts) {
+                    console.error('Max reconnect attempts reached. Please refresh the page.');
+                    const statusEl = document.getElementById('status');
+                    statusEl.textContent = 'Connection failed. Please refresh.';
+                    statusEl.className = 'status disconnected';
+                }
+            };
+        }
+        
+        function updateStatus(connected) {
+            const statusEl = document.getElementById('status');
+            if (connected) {
+                statusEl.textContent = 'Connected';
+                statusEl.className = 'status connected';
+            } else {
+                statusEl.textContent = 'Disconnected';
+                statusEl.className = 'status disconnected';
+            }
+        }
+        
+        function handleEvent(event) {
+            console.log('Event received:', event);
+            
+            switch (event.type) {
+                case 'transcript_final':
+                    addTranscript(event.text);
+                    break;
+                    
+                case 'claim_detected':
+                    addClaim(event.claim_id, event.claim_text, event.detector_confidence);
+                    break;
+                    
+                case 'factcheck_result':
+                    updateClaimResult(
+                        event.claim_id,
+                        event.label,
+                        event.confidence,
+                        event.evidence,
+                        event.latency_ms,
+                        event.answer  // Natural language answer
+                    );
+                    break;
+                    
+                case 'factcheck_error':
+                    updateClaimError(event.claim_id, event.error);
+                    break;
+                    
+                default:
+                    console.warn('Unknown event type:', event.type);
+            }
+        }
+        
+        function addTranscript(text) {
+            const panel = document.getElementById('transcriptPanel');
+            
+            // Remove empty state if present
+            const emptyState = panel.querySelector('.empty-state');
+            if (emptyState) {
+                emptyState.remove();
+            }
+            
+            const item = document.createElement('div');
+            item.className = 'transcript-item';
+            item.innerHTML = `
+                <time>${new Date().toLocaleTimeString()}</time>
+                <div style="margin-top: 4px;">${escapeHtml(text)}</div>
+            `;
+            panel.appendChild(item);
+            panel.scrollTop = panel.scrollHeight;
+        }
+        
+        function addClaim(claimId, claimText, confidence) {
+            const panel = document.getElementById('claimsPanel');
+            
+            // Remove empty state if present
+            const emptyState = panel.querySelector('.empty-state');
+            if (emptyState) {
+                emptyState.remove();
+            }
+            
+            // Store claim data
+            claims.set(claimId, {
+                text: claimText,
+                status: 'pending',
+                confidence: confidence,
+                result: null
+            });
+            
+            const item = document.createElement('div');
+            item.className = 'claim-item pending';
+            item.id = `claim-${claimId}`;
+            item.innerHTML = `
+                <div class="claim-header">
+                    <div>
+                        <div class="claim-text">${escapeHtml(claimText)}</div>
+                        <div class="claim-id">ID: ${claimId.substring(0, 8)}...</div>
+                    </div>
+                    <span class="claim-status pending">Pending</span>
+                </div>
+                <div class="claim-confidence">Detector confidence: ${(confidence * 100).toFixed(0)}%</div>
+            `;
+            panel.appendChild(item);
+            panel.scrollTop = panel.scrollHeight;
+        }
+        
+        function updateClaimResult(claimId, label, confidence, evidence, latencyMs, answer) {
+            const claim = claims.get(claimId);
+            if (!claim) return;
+            
+            claim.status = label.toLowerCase();
+            claim.result = { label, confidence, evidence, latencyMs, answer };
+            
+            const item = document.getElementById(`claim-${claimId}`);
+            if (!item) return;
+            
+            // Update class and content
+            item.className = `claim-item ${label.toLowerCase()}`;
+            const statusText = label === 'SUPPORTED' ? 'Supported' : 
+                              label === 'REFUTED' ? 'Refuted' : 
+                              'Not Enough Info';
+            
+            // Build inner HTML with answer if available
+            let answerHtml = '';
+            if (answer) {
+                answerHtml = `<div class="claim-answer" style="margin-top: 8px; padding: 8px; background: #e7f3ff; border-radius: 4px; font-weight: 500; color: #004085;">${escapeHtml(answer)}</div>`;
+            }
+            
+            item.innerHTML = `
+                <div class="claim-header">
+                    <div>
+                        <div class="claim-text">${escapeHtml(claim.text)}</div>
+                        <div class="claim-id">ID: ${claimId.substring(0, 8)}...</div>
+                    </div>
+                    <span class="claim-status ${label.toLowerCase()}">${statusText}</span>
+                </div>
+                ${answerHtml}
+                <div class="claim-confidence">
+                    Confidence: ${(confidence * 100).toFixed(0)}% | 
+                    Latency: ${latencyMs}ms
+                </div>
+            `;
+            
+            // Add evidence
+            if (evidence && evidence.length > 0) {
+                addEvidence(claimId, evidence);
+            }
+        }
+        
+        function updateClaimError(claimId, error) {
+            const item = document.getElementById(`claim-${claimId}`);
+            if (!item) return;
+            
+            item.className = 'claim-item nei';
+            item.innerHTML = `
+                <div class="claim-header">
+                    <div>
+                        <div class="claim-text">${escapeHtml(claims.get(claimId)?.text || '')}</div>
+                        <div class="claim-id">ID: ${claimId.substring(0, 8)}...</div>
+                    </div>
+                    <span class="claim-status nei">Error</span>
+                </div>
+                <div style="color: #dc3545; font-size: 12px;">${escapeHtml(error)}</div>
+            `;
+        }
+        
+        function addEvidence(claimId, evidenceList) {
+            const panel = document.getElementById('evidencePanel');
+            
+            // Remove empty state if present
+            const emptyState = panel.querySelector('.empty-state');
+            if (emptyState) {
+                emptyState.remove();
+            }
+            
+            evidenceList.forEach(evidence => {
+                const item = document.createElement('div');
+                item.className = 'evidence-item';
+                item.innerHTML = `
+                    <div class="evidence-title">
+                        <a href="${escapeHtml(evidence.url)}" target="_blank">
+                            ${escapeHtml(evidence.title)}
+                        </a>
+                    </div>
+                    <div class="evidence-snippet">${escapeHtml(evidence.snippet)}</div>
+                    <div class="evidence-source">Source: ${escapeHtml(evidence.source)}</div>
+                `;
+                panel.appendChild(item);
+            });
+            
+            panel.scrollTop = panel.scrollHeight;
+        }
+        
+        function sendText() {
+            const input = document.getElementById('textInput');
+            const text = input.value.trim();
+            
+            if (!text) return;
+            
+            // Check WebSocket state
+            if (!ws) {
+                console.warn('WebSocket not initialized, attempting to connect...');
+                connect();
+                setTimeout(() => sendText(), 1000); // Retry after 1 second
+                return;
+            }
+            
+            if (ws.readyState === WebSocket.CONNECTING) {
+                console.log('WebSocket is connecting, please wait...');
+                // Wait a bit and retry
+                setTimeout(() => sendText(), 500);
+                return;
+            }
+            
+            if (ws.readyState !== WebSocket.OPEN) {
+                console.warn('WebSocket not open, state:', ws.readyState);
+                console.log('Attempting to reconnect...');
+                connect();
+                alert('WebSocket not connected. Attempting to reconnect... Please try again in a moment.');
+                return;
+            }
+            
+            console.log('Sending text:', text);
+            ws.send(JSON.stringify({
+                type: 'text',
+                text: text
+            }));
+            
+            input.value = '';
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        /**
+         * Heuristic check for syntactically complete sentences in German.
+         * Based on modern transcription guidelines: syntactically complete = grammatically rounded sentence.
+         * 
+         * Checks for:
+         * - Verb at end (e.g., "ist", "sind", "hat", "haben", "war", "waren")
+         * - Common sentence endings (e.g., "ist ...", "sind ...", "hat ...", "war ...")
+         * - Question words at start (e.g., "Wer", "Was", "Wo", "Wann", "Wie", "Warum")
+         * - Imperative forms
+         * 
+         * Note: This is a heuristic and may not catch all cases, but helps with common patterns.
+         */
+        function isSyntacticallyComplete(text) {
+            if (!text || text.length < 3) {
+                return false;
+            }
+            
+            const textLower = text.toLowerCase().trim();
+            const words = textLower.split(/\s+/);
+            
+            if (words.length < 2) {
+                return false; // Too short to be a complete sentence
+            }
+            
+            // Check for common sentence-ending verbs (German V2/V-final structure)
+            const sentenceEndingVerbs = [
+                'ist', 'sind', 'war', 'waren', 'wird', 'werden', 'wurde', 'wurden',
+                'hat', 'haben', 'hatte', 'hatten',
+                'kann', 'können', 'konnte', 'konnten',
+                'muss', 'müssen', 'musste', 'mussten',
+                'soll', 'sollen', 'sollte', 'sollten',
+                'darf', 'dürfen', 'durfte', 'durften',
+                'will', 'wollen', 'wollte', 'wollten',
+                'mag', 'mögen', 'mochte', 'mochten',
+                'geht', 'gehen', 'ging', 'gingen',
+                'kommt', 'kommen', 'kam', 'kamen',
+                'macht', 'machen', 'machte', 'machten',
+                'sagt', 'sagen', 'sagte', 'sagten',
+                'gibt', 'geben', 'gab', 'gaben',
+                'findet', 'finden', 'fand', 'fanden',
+                'steht', 'stehen', 'stand', 'standen',
+                'liegt', 'liegen', 'lag', 'lagen',
+                'bedeutet', 'bedeuten', 'bedeutete', 'bedeuteten',
+                'besteht', 'bestehen', 'bestand', 'bestanden',
+                'enthält', 'enthalten', 'enthielt', 'enthielten',
+                'umfasst', 'umfassen', 'umfasste', 'umfassten',
+                'zählt', 'zählen', 'zählte', 'zählten',
+                'hatte', 'hatten',
+                'wäre', 'wären', 'würde', 'würden'
+            ];
+            
+            // Check if sentence ends with a verb (common in German)
+            const lastWord = words[words.length - 1];
+            const secondLastWord = words.length > 1 ? words[words.length - 2] : '';
+            
+            // Pattern 1: Ends with sentence-ending verb
+            if (sentenceEndingVerbs.includes(lastWord)) {
+                return true;
+            }
+            
+            // Pattern 2: "X ist Y" or "X sind Y" (common copula structure)
+            if (words.length >= 3) {
+                const hasCopula = words.some(w => ['ist', 'sind', 'war', 'waren', 'wird', 'werden'].includes(w));
+                if (hasCopula) {
+                    // If we have a copula and at least 3 words, likely complete
+                    return true;
+                }
+            }
+            
+            // Pattern 3: Question words at start (questions are often complete even if short)
+            const questionWords = ['wer', 'was', 'wo', 'wann', 'wie', 'warum', 'weshalb', 'wohin', 'woher', 'welche', 'welcher', 'welches', 'welchen'];
+            if (questionWords.includes(words[0])) {
+                return true;
+            }
+            
+            // Pattern 4: Imperative forms (often end with verb)
+            // This is harder to detect, but if sentence is short and ends with verb, likely imperative
+            if (words.length <= 5 && sentenceEndingVerbs.includes(lastWord)) {
+                return true;
+            }
+            
+            // Pattern 5: Common sentence patterns with "von", "in", "zu", "für" (prepositional phrases often complete)
+            const prepositions = ['von', 'in', 'zu', 'für', 'mit', 'auf', 'an', 'über', 'unter', 'durch', 'bei', 'nach', 'vor', 'seit', 'bis'];
+            if (words.length >= 4 && prepositions.some(prep => words.includes(prep))) {
+                // If sentence has preposition and is reasonably long, likely complete
+                return true;
+            }
+            
+            // Pattern 6: Numbers or dates at end (often complete statements)
+            if (/^\d+$/.test(lastWord) || /^\d+\.\d+\.\d+$/.test(lastWord)) {
+                return true;
+            }
+            
+            // Default: If sentence is reasonably long (>= 5 words), assume it might be complete
+            // This is a fallback - better to add period than miss sentence boundaries
+            if (words.length >= 5) {
+                return true;
+            }
+            
+            return false;
+        }
+        
+        async function clearCache() {
+            const button = document.getElementById('clearCacheButton');
+            const originalText = button.textContent;
+            
+            // Ask for confirmation to be extra sure
+            if (!confirm('Are you sure you want to clear ALL caches? This will remove:\n- All cached claims\n- Wikipedia API cache\n- Wikidata API cache\n\nThis action cannot be undone.')) {
+                return;
+            }
+            
+            // Disable button during request
+            button.disabled = true;
+            button.textContent = 'Clearing...';
+            button.style.background = '#adb5bd';
+            
+            try {
+                const response = await fetch('/cache/clear', {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    const count = result.claims_cleared || 0;
+                    const cacheStats = result.cache_stats || {};
+                    
+                    // Build detailed message
+                    let message = `Cache cleared successfully!\n\n`;
+                    message += `Claims removed: ${count}\n`;
+                    
+                    if (cacheStats.wikipedia) {
+                        const wikiSize = Object.values(cacheStats.wikipedia).reduce((sum, stats) => sum + (stats.size || 0), 0);
+                        message += `Wikipedia caches cleared: ${wikiSize > 0 ? wikiSize : 'All'}\n`;
+                    }
+                    
+                    if (cacheStats.wikidata) {
+                        const wikidataSize = Object.values(cacheStats.wikidata).reduce((sum, stats) => sum + (stats.size || 0), 0);
+                        message += `Wikidata caches cleared: ${wikidataSize > 0 ? wikidataSize : 'All'}\n`;
+                    }
+                    
+                    message += `\nAll caches have been cleared. The page will refresh in 2 seconds...`;
+                    
+                    alert(message);
+                    console.log('Cache cleared successfully:', result);
+                    
+                    // Force refresh after short delay to ensure clean state
+                    setTimeout(() => {
+                        window.location.reload(true);  // Hard refresh (bypass cache)
+                    }, 2000);
+                } else {
+                    alert('Error clearing cache: ' + (result.error || result.message || 'Unknown error'));
+                    console.error('Cache clear error:', result);
+                    
+                    // Re-enable button on error
+                    button.disabled = false;
+                    button.textContent = originalText;
+                    button.style.background = '';
+                }
+            } catch (error) {
+                alert('Error clearing cache: ' + error.message + '\n\nPlease try again or refresh the page.');
+                console.error('Cache clear error:', error);
+                
+                // Re-enable button on error
+                button.disabled = false;
+                button.textContent = originalText;
+                button.style.background = '';
+            } finally {
+                // Only re-enable if we didn't schedule a refresh
+                // (refresh will happen on success, so button will be reset anyway)
+                button.disabled = false;
+                button.textContent = originalText;
+                button.style.background = '#6c757d';
+            }
+        }
+        
+        async function restartServer() {
+            const button = document.getElementById('restartServerButton');
+            const originalText = button.textContent;
+            
+            if (!confirm('Are you sure you want to restart the server? This will disconnect all clients briefly.')) {
+                return;
+            }
+            
+            // Disable button during request
+            button.disabled = true;
+            button.textContent = 'Restarting...';
+            button.style.background = '#c82333';
+            
+            try {
+                const response = await fetch('/server/restart', {
+                    method: 'POST',
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    alert('Server restart initiated! The page will reload in 3 seconds...');
+                    console.log('Server restart:', result);
+                    
+                    // Wait for server to restart and reload page
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 3000);
+                } else {
+                    alert('Error restarting server: ' + (result.error || result.message || 'Unknown error'));
+                    console.error('Server restart error:', result);
+                    button.disabled = false;
+                    button.textContent = originalText;
+                    button.style.background = '#dc3545';
+                }
+            } catch (error) {
+                alert('Error restarting server: ' + error.message);
+                console.error('Server restart error:', error);
+                button.disabled = false;
+                button.textContent = originalText;
+                button.style.background = '#dc3545';
+            }
+        }
+        
+        // Audio recording functions
+        function toggleListening() {
+            if (isListening) {
+                stopListening();
+            } else {
+                startListening();
+            }
+        }
+        
+        function startListening() {
+            // Check if Web Speech API is available
+            if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+                startWebSpeechRecognition();
+            } else {
+                // Fallback to MediaRecorder API (requires server-side Whisper)
+                startMediaRecorder();
+            }
+        }
+        
+        function startWebSpeechRecognition() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
+            recognition.lang = 'de-DE';
+            recognition.continuous = true;
+            recognition.interimResults = true;
+            
+            accumulatedTranscript = '';
+            lastFinalTime = null;
+            lastInterimUpdate = null;
+            lastStableText = '';
+            lastTextChangeAt = null;
+            periodInsertedForPause = false;
+            
+            // CRITICAL: Start continuous pause monitoring
+            // This checks every 100ms if a pause has occurred, regardless of API events
+            if (pauseCheckInterval) {
+                clearInterval(pauseCheckInterval);
+            }
+            pauseCheckInterval = setInterval(() => {
+                if (!isListening || !accumulatedTranscript) {
+                    return;
+                }
+                
+                const now = Date.now();
+                const currentText = accumulatedTranscript.trim();
+                
+                // Skip if already has punctuation
+                if (!currentText || /[.!?]$/.test(currentText)) {
+                    periodInsertedForPause = false; // Reset flag if punctuation already exists
+                    return;
+                }
+                
+                // Check if we have text change timestamp
+                if (!lastTextChangeAt) {
+                    return;
+                }
+                
+                const timeSinceLastChange = now - lastTextChangeAt;
+                
+                // If pause >= 500ms AND period not already inserted, add period
+                if (timeSinceLastChange >= INTERIM_PAUSE_MS && !periodInsertedForPause) {
+                    // Check for syntactic completeness
+                    if (isSyntacticallyComplete(currentText) || timeSinceLastChange >= INTERIM_PAUSE_MS) {
+                        accumulatedTranscript = currentText + '. ';
+                        document.getElementById('listeningText').textContent = `"${accumulatedTranscript.trim()}"`;
+                        console.log('Continuous pause check: added period after', timeSinceLastChange, 'ms (text unchanged)');
+                        periodInsertedForPause = true; // Prevent duplicate periods
+                        // Update lastStableText to reflect the period
+                        lastStableText = accumulatedTranscript.trim();
+                    }
+                }
+            }, PAUSE_CHECK_INTERVAL_MS);
+            
+            recognition.onstart = () => {
+                isListening = true;
+                updateListeningUI(true);
+                console.log('Speech recognition started');
+            };
+            
+            recognition.onresult = (event) => {
+                const now = Date.now();
+                let interimTranscript = '';
+                let finalTranscript = '';
+                let hasFinal = false;
+                let hasInterim = false;
+                
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    const transcript = event.results[i][0].transcript;
+                    if (event.results[i].isFinal) {
+                        hasFinal = true;
+                        // CRITICAL: Add period at end of final transcript to mark sentence end
+                        // This helps with sentence segmentation for claim detection
+                        let finalText = transcript.trim();
+                        // Only add period if it doesn't already end with punctuation
+                        if (finalText && !/[.!?]$/.test(finalText)) {
+                            finalText += '.';
+                        }
+                        finalTranscript += finalText + ' ';
+                    } else {
+                        interimTranscript += transcript;
+                        hasInterim = true;
+                    }
+                }
+                
+                // CRITICAL: Build full current transcript (final + interim) and normalize
+                const currentFullText = (accumulatedTranscript + finalTranscript + (interimTranscript ? ' ' + interimTranscript : '')).trim();
+                // Normalize: collapse multiple spaces to single space
+                const normalizedCurrentText = currentFullText.replace(/\s+/g, ' ');
+                
+                // CRITICAL: Only update pause timer if text actually changed
+                if (normalizedCurrentText !== lastStableText) {
+                    // Text changed - reset pause timer
+                    lastStableText = normalizedCurrentText;
+                    lastTextChangeAt = now;
+                    periodInsertedForPause = false; // Reset flag when text changes
+                    console.log('Text changed:', normalizedCurrentText.substring(0, 50) + (normalizedCurrentText.length > 50 ? '...' : ''));
+                } else {
+                    // Text unchanged - this is a pause (interim results with same text)
+                    // Do NOT update lastTextChangeAt - let the pause timer continue
+                    console.log('Interim result with unchanged text (pause detected)');
+                }
+                
+                // Update UI with interim results
+                if (interimTranscript) {
+                    // Update last interim update time
+                    lastInterimUpdate = now;
+                    
+                    // Show accumulated + interim
+                    const displayText = accumulatedTranscript.trim() + (accumulatedTranscript ? ' ' : '') + interimTranscript;
+                    document.getElementById('listeningText').textContent = `"${displayText}"`;
+                }
+                
+                // Accumulate final transcripts
+                if (finalTranscript) {
+                    accumulatedTranscript += finalTranscript;
+                    lastFinalTime = now;
+                    lastInterimUpdate = null; // Reset interim tracking
+                    
+                    // Update stable text after final transcript
+                    lastStableText = accumulatedTranscript.trim().replace(/\s+/g, ' ');
+                    lastTextChangeAt = now; // Final transcript is a text change
+                    periodInsertedForPause = false; // Reset flag
+                    
+                    document.getElementById('listeningText').textContent = `"${accumulatedTranscript.trim()}"`;
+                }
+                
+                // Note: Pause detection is now handled by the continuous interval timer above
+                // The timer checks timeSinceLastChange, which is only updated when text actually changes
+            };
+            
+            recognition.onerror = (event) => {
+                console.error('Speech recognition error:', event.error);
+                if (event.error === 'no-speech') {
+                    // Ignore no-speech errors (common during pauses)
+                    return;
+                }
+                stopListening();
+                alert('Fehler bei der Spracherkennung: ' + event.error);
+            };
+            
+            recognition.onend = () => {
+                // Clear pause timeout on end
+                if (pauseTimeout) {
+                    clearTimeout(pauseTimeout);
+                    pauseTimeout = null;
+                }
+                
+                // CRITICAL: If we have accumulated text without punctuation, add period before restart
+                // This handles the case where recognition ends during a pause
+                const currentText = accumulatedTranscript.trim();
+                if (currentText && !/[.!?]$/.test(currentText)) {
+                    accumulatedTranscript = currentText + '. ';
+                    console.log('Recognition ended, added period to transcript');
+                }
+                
+                // Auto-restart if still listening (handles temporary interruptions)
+                if (isListening) {
+                    try {
+                        recognition.start();
+                    } catch (e) {
+                        console.log('Recognition already started or error:', e);
+                    }
+                }
+            };
+            
+            try {
+                recognition.start();
+            } catch (e) {
+                console.error('Error starting speech recognition:', e);
+                alert('Fehler beim Starten der Spracherkennung. Bitte erlauben Sie den Mikrofonzugriff.');
+            }
+        }
+        
+        function startMediaRecorder() {
+            navigator.mediaDevices.getUserMedia({ audio: true })
+                .then(stream => {
+                    mediaRecorder = new MediaRecorder(stream, {
+                        mimeType: 'audio/webm;codecs=opus'
+                    });
+                    
+                    audioChunks = [];
+                    accumulatedTranscript = '';
+                    
+                    mediaRecorder.ondataavailable = (event) => {
+                        if (event.data.size > 0) {
+                            audioChunks.push(event.data);
+                            
+                            // Send audio chunk to server for transcription
+                            sendAudioChunk(event.data);
+                        }
+                    };
+                    
+                    mediaRecorder.onstop = () => {
+                        // Process final accumulated transcript
+                        if (accumulatedTranscript.trim()) {
+                            processFinalTranscript(accumulatedTranscript.trim());
+                        }
+                        
+                        // Stop all tracks
+                        stream.getTracks().forEach(track => track.stop());
+                    };
+                    
+                    // Start recording and send chunks every 2 seconds
+                    mediaRecorder.start(2000);
+                    isListening = true;
+                    updateListeningUI(true);
+                    
+                    console.log('MediaRecorder started');
+                })
+                .catch(error => {
+                    console.error('Error accessing microphone:', error);
+                    alert('Fehler beim Zugriff auf das Mikrofon: ' + error.message);
+                });
+        }
+        
+        function stopListening() {
+            isListening = false;
+            updateListeningUI(false);
+            
+            if (recognition) {
+                recognition.stop();
+                recognition = null;
+                
+                // Process final accumulated transcript
+                if (accumulatedTranscript.trim()) {
+                    processFinalTranscript(accumulatedTranscript.trim());
+                }
+            }
+            
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+                mediaRecorder = null;
+            }
+            
+            accumulatedTranscript = '';
+            lastFinalTime = null;
+            lastInterimUpdate = null;
+            lastStableText = '';
+            lastTextChangeAt = null;
+            periodInsertedForPause = false;
+            
+            // Clear continuous pause monitoring
+            if (pauseCheckInterval) {
+                clearInterval(pauseCheckInterval);
+                pauseCheckInterval = null;
+            }
+        }
+        
+        function updateListeningUI(listening) {
+            const button = document.getElementById('listenButton');
+            const statusDiv = document.getElementById('listeningStatus');
+            const statusText = document.getElementById('listeningText');
+            
+            if (listening) {
+                button.textContent = '⏹ Stoppen';
+                button.style.background = '#dc3545';
+                statusDiv.style.display = 'block';
+                statusText.textContent = 'Warte auf Sprache...';
+            } else {
+                button.textContent = '🎤 Mithören';
+                button.style.background = '#28a745';
+                statusDiv.style.display = 'none';
+                statusText.textContent = '';
+            }
+        }
+        
+        function sendAudioChunk(audioBlob) {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                console.warn('WebSocket not open, cannot send audio chunk');
+                return;
+            }
+            
+            // Convert blob to base64
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                const base64Audio = reader.result.split(',')[1]; // Remove data:audio/webm;base64, prefix
+                
+                ws.send(JSON.stringify({
+                    type: 'audio',
+                    format: 'webm',
+                    chunk_b64: base64Audio
+                }));
+            };
+            reader.readAsDataURL(audioBlob);
+        }
+        
+        function processFinalTranscript(transcript) {
+            if (!transcript || !transcript.trim()) {
+                return;
+            }
+            
+            // CRITICAL: Ensure transcript ends with punctuation for proper sentence segmentation
+            // This helps the backend split sentences correctly for claim detection
+            let processedTranscript = transcript.trim();
+            
+            // Add period at end if it doesn't already end with punctuation
+            if (processedTranscript && !/[.!?]$/.test(processedTranscript)) {
+                processedTranscript += '.';
+            }
+            
+            console.log('Processing final transcript:', processedTranscript);
+            
+            // Send transcript to server for claim detection and fact-checking
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'text',
+                    text: processedTranscript
+                }));
+            } else {
+                console.warn('WebSocket not open, cannot send transcript');
+            }
+        }
+        
+        // Connect on page load
+        connect();
+    </script>
+</body>
+</html>
+

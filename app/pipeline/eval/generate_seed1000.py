@@ -1,0 +1,1228 @@
+# scripts/eval/generate_seed1000.py
+import json
+import random
+import re
+from collections import Counter
+from pathlib import Path
+
+random.seed(42)
+
+# Path relative to project root (script should be run from project root)
+OUT_PATH = Path("data/eval/seed1000_taxonomy.jsonl")
+OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+TOTAL = 1000
+
+# Final taxonomy (as agreed)
+# - Geography stays 15% total, split: 2/3 city/country/capital (=100), 1/3 physical (=50)
+# - Politics stays 15% total, split: 1/3 office (=50), 2/3 general (=100)
+taxonomy = [
+    ("geography_city", 100),
+    ("geography_physical", 50),
+    ("politics_office", 50),
+    ("politics_general", 100),
+    ("science", 100),
+    ("sport", 100),
+    ("biology_medicine", 100),
+    ("culture", 100),
+    ("religion", 50),
+    ("economy", 50),
+    ("astronomy", 50),
+    ("comparison", 50),
+    ("general_knowledge", 100),  # Increased from 50 to 100 to reach 1000 total
+]
+assert sum(n for _, n in taxonomy) == TOTAL
+
+def norm_space(s: str) -> str:
+    return re.sub(r"\s+", " ", s).strip()
+
+# Label mix (overall, per-topic)
+# You can tweak this if you want fewer/more NEI cases in Phase 2.
+MIX = (0.45, 0.35, 0.20)  # SUPPORTED, REFUTED, NEI
+
+def pick_label_mix(supported, refuted, nei, n, mix=MIX):
+    """
+    Pick claims from pools using random.sample() to ensure no duplicates.
+    Requires pools to be large enough - raises ValueError if not.
+    """
+    n_sup = round(n * mix[0])
+    n_ref = round(n * mix[1])
+    n_nei = n - n_sup - n_ref
+    
+    # Validate pool sizes
+    if len(supported) < n_sup:
+        raise ValueError(f"SUPPORTED pool too small: need {n_sup}, have {len(supported)}")
+    if len(refuted) < n_ref:
+        raise ValueError(f"REFUTED pool too small: need {n_ref}, have {len(refuted)}")
+    if len(nei) < n_nei:
+        raise ValueError(f"NOT_ENOUGH_INFO pool too small: need {n_nei}, have {len(nei)}")
+    
+    items = []
+    items.extend([(claim, "SUPPORTED") for claim in random.sample(supported, n_sup)])
+    items.extend([(claim, "REFUTED") for claim in random.sample(refuted, n_ref)])
+    items.extend([(claim, "NOT_ENOUGH_INFO") for claim in random.sample(nei, n_nei)])
+    
+    random.shuffle(items)
+    return items
+
+# -----------------------
+# Data pools (stable facts)
+# -----------------------
+
+capitals = [
+    ("Spanien","Madrid"), ("Portugal","Lissabon"), ("Frankreich","Paris"), ("Italien","Rom"),
+    ("Deutschland","Berlin"), ("Österreich","Wien"), ("Schweiz","Bern"), ("Niederlande","Amsterdam"),
+    ("Belgien","Brüssel"), ("Dänemark","Kopenhagen"), ("Schweden","Stockholm"), ("Norwegen","Oslo"),
+    ("Finnland","Helsinki"), ("Irland","Dublin"), ("Polen","Warschau"), ("Tschechien","Prag"),
+    ("Slowakei","Bratislava"), ("Ungarn","Budapest"), ("Rumänien","Bukarest"), ("Bulgarien","Sofia"),
+    ("Griechenland","Athen"), ("Türkei","Ankara"), ("Russland","Moskau"), ("Ukraine","Kyjiw"),
+    ("Belarus","Minsk"), ("Litauen","Vilnius"), ("Lettland","Riga"), ("Estland","Tallinn"),
+    ("Island","Reykjavík"), ("Kanada","Ottawa"), ("USA","Washington, D.C."), ("Mexiko","Mexiko-Stadt"),
+    ("Brasilien","Brasília"), ("Argentinien","Buenos Aires"), ("Chile","Santiago de Chile"),
+    ("Peru","Lima"), ("Kolumbien","Bogotá"), ("Venezuela","Caracas"), ("Australien","Canberra"),
+    ("Neuseeland","Wellington"), ("Japan","Tokio"), ("Südkorea","Seoul"), ("Nordkorea","Pjöngjang"),
+    ("China","Peking"), ("Indien","Neu-Delhi"), ("Pakistan","Islamabad"), ("Ägypten","Kairo"),
+    ("Südafrika","Pretoria"), ("Nigeria","Abuja"), ("Kenia","Nairobi"), ("Marokko","Rabat"),
+    ("Saudi-Arabien","Riad"), ("Israel","Jerusalem"), ("Iran","Teheran"),
+]
+
+city_country = [
+    ("München","Deutschland"), ("Hamburg","Deutschland"), ("Köln","Deutschland"),
+    ("Frankfurt am Main","Deutschland"), ("Stuttgart","Deutschland"),
+    ("Zürich","Schweiz"), ("Genf","Schweiz"),
+    ("Barcelona","Spanien"), ("Valencia","Spanien"),
+    ("Porto","Portugal"), ("Braga","Portugal"),
+    ("Mailand","Italien"), ("Neapel","Italien"),
+    ("Lyon","Frankreich"), ("Marseille","Frankreich"),
+    ("Manchester","Vereinigtes Königreich"), ("Edinburgh","Vereinigtes Königreich"),
+    ("Krakau","Polen"), ("Gdańsk","Polen"),
+    ("Kyoto","Japan"), ("Osaka","Japan"),
+    ("Sydney","Australien"), ("Melbourne","Australien"),
+    ("Rio de Janeiro","Brasilien"), ("São Paulo","Brasilien"),
+    ("Kapstadt","Südafrika"), ("Johannesburg","Südafrika"),
+    ("Alexandria","Ägypten"),
+]
+
+rivers = [
+    ("Rhein","Deutschland"), ("Donau","Europa"), ("Nil","Afrika"), ("Amazonas","Südamerika"),
+    ("Elbe","Deutschland"), ("Po","Italien"), ("Seine","Frankreich"), ("Themse","Vereinigtes Königreich")
+]
+mountains = [
+    ("Mount Everest","Himalaya"), ("Mont Blanc","Alpen"), ("Zugspitze","Alpen"), ("Kilimandscharo","Tansania")
+]
+seas = [
+    ("Mittelmeer","Europa"), ("Schwarzes Meer","Europa und Asien"), ("Nordsee","Europa"),
+    ("Ostsee","Europa"), ("Kaspisches Meer","Eurasien")
+]
+
+politics_office_facts = [
+    ("Der Bundeskanzler in Deutschland wird vom Bundestag gewählt.", "SUPPORTED"),
+    ("Der Bundespräsident in Deutschland wird von der Bundesversammlung gewählt.", "SUPPORTED"),
+    ("Der US-Präsident wird durch ein Wahlmännerkollegium gewählt.", "SUPPORTED"),
+    ("Der Papst wird von Kardinälen im Konklave gewählt.", "SUPPORTED"),
+    ("In Deutschland ist der Bundespräsident Regierungschef.", "REFUTED"),
+    ("Der Bundestag ist die Bundesregierung.", "REFUTED"),
+    ("In Deutschland wird das Grundgesetz durch die Bundeswehr beschlossen.", "REFUTED"),
+    ("Der Präsident Frankreichs ist automatisch auch König von Spanien.", "REFUTED"),
+]
+
+politics_general_facts = [
+    ("Deutschland ist eine föderale Republik.", "SUPPORTED"),
+    ("Die Schweiz ist kein Mitglied der Europäischen Union.", "SUPPORTED"),
+    ("Die Vereinten Nationen wurden nach dem Zweiten Weltkrieg gegründet.", "SUPPORTED"),
+    ("Die NATO ist ein militärisches Bündnis.", "SUPPORTED"),
+    ("Der Euro ist die Währung von Italien.", "SUPPORTED"),
+    ("In Deutschland gibt es eine Gewaltenteilung.", "SUPPORTED"),
+    ("Das Europäische Parlament wird direkt gewählt.", "SUPPORTED"),
+    ("Österreich ist eine parlamentarische Monarchie.", "REFUTED"),
+    ("Kanada ist Mitglied der Europäischen Union.", "REFUTED"),
+    ("Nordkorea ist Mitglied der NATO.", "REFUTED"),
+    ("Die EU hat nur ein Mitgliedsland.", "REFUTED"),
+    ("In der EU gibt es keine gemeinsamen Institutionen.", "REFUTED"),
+]
+
+science_supported = [
+    "Wasser besteht aus Wasserstoff und Sauerstoff.",
+    "Licht bewegt sich schneller als Schall.",
+    "Elektronen sind negativ geladen.",
+    "Energie kann nicht aus dem Nichts entstehen.",
+    "Schall benötigt ein Medium zur Ausbreitung.",
+    "CO₂ ist schwerer als Sauerstoff.",
+    "Die Erde umkreist die Sonne.",
+    "Metalle leiten elektrischen Strom in der Regel gut.",
+    "Ein Newton ist eine Einheit der Kraft.",
+    "Der pH-Wert misst, wie sauer oder basisch eine Lösung ist.",
+    "Ein Proton ist positiv geladen.",
+    "Ein Neutron ist elektrisch neutral.",
+    "Die Lichtgeschwindigkeit beträgt etwa 300.000 Kilometer pro Sekunde.",
+    "Die Schwerkraft hält die Planeten in ihren Umlaufbahnen.",
+    "Ein Atom besteht aus einem Kern und Elektronen.",
+    "Die Temperatur wird in Grad Celsius oder Kelvin gemessen.",
+    "Ein Molekül ist die kleinste Einheit einer chemischen Verbindung.",
+    "Die Dichte ist Masse pro Volumen.",
+    "Ein Element besteht aus Atomen mit derselben Anzahl von Protonen.",
+    "Ein Isotop hat dieselbe Anzahl von Protonen, aber unterschiedliche Anzahl von Neutronen.",
+    "Die Geschwindigkeit ist Strecke pro Zeit.",
+    "Die Beschleunigung ist die Änderung der Geschwindigkeit pro Zeit.",
+    "Die Kraft ist Masse mal Beschleunigung.",
+    "Die Energie ist die Fähigkeit, Arbeit zu verrichten.",
+    "Die Leistung ist Energie pro Zeit.",
+    "Ein Elektromagnet erzeugt ein Magnetfeld durch elektrischen Strom.",
+    "Ein Kondensator speichert elektrische Ladung.",
+    "Ein Widerstand begrenzt den elektrischen Strom.",
+    "Ein Transistor kann als Schalter oder Verstärker verwendet werden.",
+    "Ein Halbleiter leitet Strom unter bestimmten Bedingungen.",
+    "Die Photosynthese wandelt Lichtenergie in chemische Energie um.",
+    "Ein Enzym ist ein biologischer Katalysator.",
+    "Die DNA enthält die genetische Information.",
+    "Die RNA überträgt genetische Information.",
+    "Ein Protein besteht aus Aminosäuren.",
+    "Ein Kohlenhydrat ist eine organische Verbindung aus Kohlenstoff, Wasserstoff und Sauerstoff.",
+    "Ein Lipid ist eine fettähnliche Substanz.",
+    "Die Zellteilung ist der Prozess, durch den sich Zellen vermehren.",
+    "Die Evolution ist die Veränderung von Arten über die Zeit.",
+    "Die natürliche Selektion ist ein Mechanismus der Evolution.",
+    "Ein Fossil ist ein Überrest eines Lebewesens aus der Vergangenheit.",
+    "Die Geologie ist die Wissenschaft von der Erde.",
+    "Die Meteorologie ist die Wissenschaft vom Wetter.",
+    "Die Astronomie ist die Wissenschaft von den Himmelskörpern.",
+    "Die Physik ist die Wissenschaft von Materie und Energie.",
+    "Die Chemie ist die Wissenschaft von den Stoffen und ihren Reaktionen.",
+]
+science_refuted = [
+    "Antibiotika wirken gegen Viren.",
+    "Der Mensch besitzt drei DNA-Stränge.",
+    "Die Erde ist ein perfekter Kreis.",
+    "Diamant besteht aus flüssigem Wasser.",
+    "Schall breitet sich im Vakuum besser aus als in Luft.",
+    "Blei ist leichter als Luft.",
+    "Eis ist heißer als Wasserdampf.",
+    "Elektronen sind positiv geladen.",
+    "Der pH-Wert hat nichts mit Säuren zu tun.",
+    "Ein Newton ist eine Einheit der Temperatur.",
+    "Licht bewegt sich langsamer als Schall.",
+    "CO₂ ist leichter als Sauerstoff.",
+    "Die Erde ist flach.",
+    "Ein Proton ist negativ geladen.",
+    "Ein Neutron ist positiv geladen.",
+    "Die Lichtgeschwindigkeit beträgt etwa 100.000 Kilometer pro Sekunde.",
+    "Die Schwerkraft wirkt nur auf der Erde.",
+    "Ein Atom besteht nur aus Elektronen.",
+    "Die Temperatur wird in Grad Fahrenheit gemessen.",
+    "Ein Molekül ist die kleinste Einheit eines Elements.",
+    "Die Dichte ist Volumen pro Masse.",
+    "Ein Element besteht aus Molekülen.",
+    "Ein Isotop hat unterschiedliche Anzahl von Protonen.",
+    "Die Geschwindigkeit ist Zeit pro Strecke.",
+    "Die Beschleunigung ist die Änderung der Zeit pro Geschwindigkeit.",
+    "Die Kraft ist Geschwindigkeit mal Masse.",
+    "Die Energie kann aus dem Nichts entstehen.",
+    "Die Leistung ist Zeit pro Energie.",
+    "Ein Elektromagnet erzeugt kein Magnetfeld.",
+    "Ein Kondensator speichert keine elektrische Ladung.",
+    "Ein Widerstand verstärkt den elektrischen Strom.",
+    "Ein Transistor kann nicht als Schalter verwendet werden.",
+    "Ein Halbleiter leitet immer Strom.",
+    "Die Photosynthese wandelt chemische Energie in Lichtenergie um.",
+    "Ein Enzym ist kein biologischer Katalysator.",
+]
+science_nei = [
+    "Die effizienteste Solarzelle der Welt hat einen Wirkungsgrad von über 60 Prozent.",
+    "Graphen ist das härteste bekannte Material.",
+    "Es gibt ein Experiment, das Teleportation im Alltag ermöglicht.",
+    "Die durchschnittliche Wolkendichte beträgt genau 0,3 kg/m³.",
+    "Die schnellste CPU der Welt hat eine Taktfrequenz von über 8 GHz.",
+    "Quantencomputer können alle Verschlüsselungen in Sekunden brechen.",
+    "Die Temperatur im Zentrum der Sonne beträgt genau 15 Millionen Grad Celsius.",
+    "Ein bestimmtes Material leitet Strom ohne Widerstand bei Raumtemperatur.",
+    "Die durchschnittliche Regenmenge in Deutschland beträgt genau 800 Liter pro Quadratmeter.",
+    "Es gibt eine Technologie, die Schwerkraft vollständig aufheben kann.",
+    "Die effizienteste Batterie der Welt hält 10 Jahre ohne Aufladung.",
+    "Ein bestimmtes Element ist bei allen Temperaturen flüssig.",
+    "Die durchschnittliche Windgeschwindigkeit auf der Erde beträgt genau 15 km/h.",
+    "Es gibt ein Material, das bei -200 Grad Celsius noch flexibel ist.",
+    "Die schnellste Internetverbindung der Welt überträgt 1 Petabyte pro Sekunde.",
+    "Ein bestimmtes Experiment hat bewiesen, dass Zeitreisen möglich sind.",
+    "Die durchschnittliche Lebensdauer eines Atoms beträgt genau 10 Milliarden Jahre.",
+    "Es gibt eine Substanz, die bei 5000 Grad Celsius noch fest ist.",
+    "Die effizienteste Solarzelle hat einen Wirkungsgrad von über 80 Prozent.",
+    "Die durchschnittliche Dichte der Erdatmosphäre beträgt genau 1,2 kg/m³.",
+]
+
+sport_supported = [
+    "Der FC Bayern München spielt in der Bundesliga.",
+    "Die Fußball-WM 2014 wurde von Deutschland gewonnen.",
+    "Die Olympischen Sommerspiele 2012 fanden in London statt.",
+    "Tennis ist eine olympische Sportart.",
+    "Die NBA ist eine Basketballliga in Nordamerika.",
+    "Die Tour de France ist ein Radrennen.",
+    "Usain Bolt hält den Weltrekord über 100 Meter.",
+    "Real Madrid ist ein Fußballverein aus Spanien.",
+    "Formel 1 ist eine Motorsportserie.",
+    "Handball wird mit einem Ball gespielt.",
+    "Die Fußball-WM 2018 wurde von Frankreich gewonnen.",
+    "Die Olympischen Sommerspiele 2016 fanden in Rio de Janeiro statt.",
+    "Die Fußball-WM 2010 fand in Südafrika statt.",
+    "Die Olympischen Sommerspiele 2008 fanden in Peking statt.",
+    "Die Fußball-WM 2006 fand in Deutschland statt.",
+    "Die Olympischen Sommerspiele 2004 fanden in Athen statt.",
+    "Die Fußball-WM 2002 fand in Südkorea und Japan statt.",
+    "Die Olympischen Sommerspiele 2000 fanden in Sydney statt.",
+    "Die Fußball-WM 1998 wurde von Frankreich gewonnen.",
+    "Die Olympischen Sommerspiele 1996 fanden in Atlanta statt.",
+    "Die Fußball-WM 1994 fand in den USA statt.",
+    "Die Olympischen Sommerspiele 1992 fanden in Barcelona statt.",
+    "Die Fußball-WM 1990 wurde von Deutschland gewonnen.",
+    "Die Olympischen Sommerspiele 1988 fanden in Seoul statt.",
+    "Die Fußball-WM 1986 wurde von Argentinien gewonnen.",
+    "Die Olympischen Sommerspiele 1984 fanden in Los Angeles statt.",
+    "Die Fußball-WM 1982 wurde von Italien gewonnen.",
+    "Die Olympischen Sommerspiele 1980 fanden in Moskau statt.",
+    "Die Fußball-WM 1978 wurde von Argentinien gewonnen.",
+    "Die Olympischen Sommerspiele 1976 fanden in Montreal statt.",
+    "Die Fußball-WM 1974 wurde von Deutschland gewonnen.",
+    "Die Olympischen Sommerspiele 1972 fanden in München statt.",
+    "Die Fußball-WM 1970 wurde von Brasilien gewonnen.",
+    "Die Olympischen Sommerspiele 1968 fanden in Mexiko-Stadt statt.",
+    "Die Fußball-WM 1966 wurde von England gewonnen.",
+    "Die Olympischen Sommerspiele 1964 fanden in Tokio statt.",
+    "Die Fußball-WM 1962 wurde von Brasilien gewonnen.",
+    "Die Olympischen Sommerspiele 1960 fanden in Rom statt.",
+    "Die Fußball-WM 1958 wurde von Brasilien gewonnen.",
+    "Die Olympischen Sommerspiele 1956 fanden in Melbourne statt.",
+    "Die Fußball-WM 1954 wurde von Deutschland gewonnen.",
+    "Die Olympischen Sommerspiele 1952 fanden in Helsinki statt.",
+    "Die Fußball-WM 1950 wurde von Uruguay gewonnen.",
+    "Die Olympischen Sommerspiele 1948 fanden in London statt.",
+    "Die Fußball-WM 1938 wurde von Italien gewonnen.",
+]
+sport_refuted = [
+    "Lionel Messi gewann die Fußball-WM 2018.",
+    "Die Olympischen Sommerspiele 2016 fanden in Tokio statt.",
+    "Die NBA ist eine europäische Fußballliga.",
+    "Die Tour de France ist ein Skisprung-Wettbewerb.",
+    "Roger Federer gewann Wimbledon 2022.",
+    "Der FC Barcelona spielt in der Bundesliga.",
+    "Handball wird mit elf Spielern pro Team gespielt.",
+    "Usain Bolt gewann olympisches Gold im Schwimmen.",
+    "Formel 1 wird ausschließlich auf Eis gefahren.",
+    "Real Madrid ist ein Tennisverein aus Italien.",
+    "Die Fußball-WM 2018 wurde von Deutschland gewonnen.",
+    "Die Olympischen Sommerspiele 2012 fanden in Tokio statt.",
+    "Die Fußball-WM 2014 wurde von Brasilien gewonnen.",
+    "Die Olympischen Sommerspiele 2016 fanden in London statt.",
+    "Die Fußball-WM 2010 wurde von Spanien gewonnen.",
+    "Die Olympischen Sommerspiele 2008 fanden in Tokio statt.",
+    "Die Fußball-WM 2006 wurde von Brasilien gewonnen.",
+    "Die Olympischen Sommerspiele 2004 fanden in London statt.",
+    "Die Fußball-WM 2002 wurde von Deutschland gewonnen.",
+    "Die Olympischen Sommerspiele 2000 fanden in Peking statt.",
+    "Die Fußball-WM 1998 wurde von Brasilien gewonnen.",
+    "Die Olympischen Sommerspiele 1996 fanden in Barcelona statt.",
+    "Die Fußball-WM 1994 wurde von Deutschland gewonnen.",
+    "Die Olympischen Sommerspiele 1992 fanden in Atlanta statt.",
+    "Die Fußball-WM 1990 wurde von Brasilien gewonnen.",
+    "Die Olympischen Sommerspiele 1988 fanden in Los Angeles statt.",
+    "Die Fußball-WM 1986 wurde von Deutschland gewonnen.",
+    "Die Olympischen Sommerspiele 1984 fanden in Moskau statt.",
+    "Die Fußball-WM 1982 wurde von Brasilien gewonnen.",
+    "Die Olympischen Sommerspiele 1980 fanden in Los Angeles statt.",
+    "Die Fußball-WM 1978 wurde von Deutschland gewonnen.",
+    "Die Olympischen Sommerspiele 1976 fanden in München statt.",
+    "Die Fußball-WM 1974 wurde von Brasilien gewonnen.",
+    "Die Olympischen Sommerspiele 1972 fanden in Montreal statt.",
+    "Die Fußball-WM 1970 wurde von Deutschland gewonnen.",
+]
+sport_nei = [
+    "Der wertvollste Fußballkader der Welt spielt in der Premier League.",
+    "Der beste Marathonläufer aller Zeiten lief unter 2 Stunden im Wettkampf ohne Hilfsmittel.",
+    "Die durchschnittliche Passquote in der Bundesliga liegt immer über 90 Prozent.",
+    "Der schnellste Sprinter der Welt läuft 100 Meter in unter 9 Sekunden.",
+    "Die erfolgreichste Fußballmannschaft Europas hat mehr als 50 Titel gewonnen.",
+    "Der beste Torhüter der Welt hält mehr als 95 Prozent aller Schüsse.",
+    "Die durchschnittliche Laufgeschwindigkeit eines Profifußballers beträgt genau 12 km/h.",
+    "Der wertvollste Spieler der Welt kostet mehr als 300 Millionen Euro.",
+    "Die erfolgreichste Tennisspielerin hat mehr als 30 Grand-Slam-Titel gewonnen.",
+    "Der beste Basketballspieler wirft mehr als 80 Prozent seiner Freiwürfe.",
+    "Die durchschnittliche Spielzeit eines Fußballspielers beträgt genau 85 Minuten pro Spiel.",
+    "Der schnellste Radfahrer fährt mehr als 80 km/h auf flacher Strecke.",
+    "Die erfolgreichste Olympiamannschaft hat mehr als 200 Goldmedaillen gewonnen.",
+    "Der beste Schütze trifft mehr als 99 Prozent seiner Schüsse.",
+    "Die durchschnittliche Sprunghöhe eines Basketballspielers beträgt genau 1,2 Meter.",
+    "Der wertvollste Sportverein der Welt ist mehr als 5 Milliarden Euro wert.",
+    "Die erfolgreichste Formel-1-Mannschaft hat mehr als 20 Weltmeisterschaften gewonnen.",
+    "Der beste Schwimmer schwimmt 100 Meter in unter 45 Sekunden.",
+    "Die durchschnittliche Ballbesitzzeit einer Fußballmannschaft beträgt genau 60 Prozent.",
+    "Der schnellste Skifahrer fährt mehr als 160 km/h.",
+]
+
+bio_supported = [
+    "Das menschliche Herz hat vier Kammern.",
+    "Penicillin ist ein Antibiotikum.",
+    "Menschen besitzen 46 Chromosomen.",
+    "Insulin reguliert den Blutzuckerspiegel.",
+    "Blut transportiert Sauerstoff im Körper.",
+    "Impfungen können vor Infektionskrankheiten schützen.",
+    "Bakterien können sich durch Zellteilung vermehren.",
+    "DNA ist ein Träger genetischer Information.",
+    "Der Mensch hat ein zentrales Nervensystem.",
+    "Vitamine sind organische Verbindungen.",
+    "Das menschliche Gehirn besteht aus Neuronen.",
+    "Die Leber ist das größte innere Organ des Menschen.",
+    "Die Lunge ist für die Atmung zuständig.",
+    "Die Niere filtert Abfallstoffe aus dem Blut.",
+    "Das Skelett gibt dem Körper Stabilität.",
+    "Muskeln ermöglichen Bewegung.",
+    "Die Haut ist das größte Organ des Menschen.",
+    "Das Auge ermöglicht das Sehen.",
+    "Das Ohr ermöglicht das Hören.",
+    "Die Nase ermöglicht das Riechen.",
+    "Die Zunge ermöglicht das Schmecken.",
+    "Das Immunsystem schützt vor Krankheiten.",
+    "Hormone regulieren Körperfunktionen.",
+    "Enzyme beschleunigen chemische Reaktionen.",
+    "Zellen sind die kleinste Einheit des Lebens.",
+    "Die Mitose ist eine Form der Zellteilung.",
+    "Die Meiose ist eine Form der Zellteilung.",
+    "Gene enthalten genetische Information.",
+    "Proteine bestehen aus Aminosäuren.",
+    "Kohlenhydrate sind eine Energiequelle.",
+    "Fette sind eine Energiequelle.",
+    "Proteine sind Baustoffe des Körpers.",
+    "Die Photosynthese produziert Sauerstoff.",
+    "Die Atmung produziert Kohlendioxid.",
+    "Der Kreislauf transportiert Nährstoffe.",
+    "Die Verdauung zersetzt Nahrung.",
+    "Die Ausscheidung entfernt Abfallstoffe.",
+    "Die Fortpflanzung erhält die Art.",
+    "Die Entwicklung verändert den Körper.",
+    "Die Evolution verändert Arten.",
+    "Die Anpassung verbessert Überlebenschancen.",
+    "Die Selektion wählt aus.",
+    "Die Mutation verändert Gene.",
+    "Die Variation erzeugt Unterschiede.",
+    "Die Vererbung überträgt Eigenschaften.",
+]
+bio_refuted = [
+    "Viren sind eigenständige Lebewesen.",
+    "Alle Bakterien sind für den Menschen schädlich.",
+    "Antibiotika töten Viren ab.",
+    "Der Mensch kann ohne Wasser mehrere Wochen überleben.",
+    "Der Mensch hat drei Herzen.",
+    "DNA besteht ausschließlich aus Salz.",
+    "Insulin erhöht immer den Blutzuckerspiegel.",
+    "Impfungen machen grundsätzlich sofort krank.",
+    "Der Mensch kann ohne Sauerstoff mehrere Stunden überleben.",
+    "Das Gehirn liegt im Bauchraum.",
+    "Das menschliche Herz hat zwei Kammern.",
+    "Penicillin ist ein Vitamin.",
+    "Menschen besitzen 23 Chromosomen.",
+    "Insulin erhöht den Blutzuckerspiegel.",
+    "Blut transportiert Kohlendioxid im Körper.",
+    "Impfungen verursachen immer Krankheiten.",
+    "Bakterien können sich nicht vermehren.",
+    "DNA ist kein Träger genetischer Information.",
+    "Der Mensch hat kein zentrales Nervensystem.",
+    "Vitamine sind anorganische Verbindungen.",
+    "Das menschliche Gehirn besteht aus Muskeln.",
+    "Die Leber ist das kleinste innere Organ des Menschen.",
+    "Die Lunge ist für die Verdauung zuständig.",
+    "Die Niere produziert Hormone.",
+    "Das Skelett ermöglicht Bewegung.",
+    "Muskeln geben dem Körper Stabilität.",
+    "Die Haut ist das kleinste Organ des Menschen.",
+    "Das Auge ermöglicht das Hören.",
+    "Das Ohr ermöglicht das Sehen.",
+    "Die Nase ermöglicht das Schmecken.",
+    "Die Zunge ermöglicht das Riechen.",
+    "Das Immunsystem verursacht Krankheiten.",
+    "Hormone beschleunigen chemische Reaktionen.",
+    "Enzyme regulieren Körperfunktionen.",
+    "Zellen sind die größte Einheit des Lebens.",
+]
+bio_nei = [
+    "Der durchschnittliche Mensch besitzt genau 2,3 Kilogramm Bakterien im Körper.",
+    "Die beste Diät für alle Menschen ist eine rein ketogene Ernährung.",
+    "Ein bestimmtes Nahrungsergänzungsmittel heilt zuverlässig Erkältungen in 24 Stunden.",
+    "Die durchschnittliche Lebenserwartung eines Menschen beträgt genau 85 Jahre.",
+    "Ein bestimmtes Vitamin verhindert zuverlässig alle Krebsarten.",
+    "Die durchschnittliche Anzahl der Gehirnzellen beträgt genau 100 Milliarden.",
+    "Ein bestimmtes Medikament heilt Alzheimer in 100 Prozent der Fälle.",
+    "Die durchschnittliche Herzfrequenz eines Menschen beträgt genau 70 Schläge pro Minute.",
+    "Ein bestimmtes Nahrungsmittel verlängert das Leben um genau 10 Jahre.",
+    "Die durchschnittliche Körpergröße eines Menschen beträgt genau 1,75 Meter.",
+    "Ein bestimmtes Training verbessert die Gehirnleistung um genau 50 Prozent.",
+    "Die durchschnittliche Schlafdauer eines Menschen beträgt genau 8 Stunden.",
+    "Ein bestimmtes Antibiotikum wirkt gegen alle Bakterienarten.",
+    "Die durchschnittliche Anzahl der Knochen im Körper beträgt genau 206.",
+    "Ein bestimmtes Supplement verhindert zuverlässig alle Krankheiten.",
+    "Die durchschnittliche Körpertemperatur beträgt genau 37 Grad Celsius.",
+    "Ein bestimmtes Medikament heilt Diabetes in 100 Prozent der Fälle.",
+    "Die durchschnittliche Anzahl der Zähne beträgt genau 32.",
+    "Ein bestimmtes Training verbrennt genau 1000 Kalorien pro Stunde.",
+    "Die durchschnittliche Blutmenge im Körper beträgt genau 5 Liter.",
+]
+
+culture_supported = [
+    "Ludwig van Beethoven wurde in Bonn geboren.",
+    'Der Roman "1984" wurde von George Orwell geschrieben.',
+    "Die Mona Lisa wurde von Leonardo da Vinci gemalt.",
+    'Shakespeare schrieb "Hamlet".',
+    "Picasso war ein Vertreter des Kubismus.",
+    "Franz Kafka schrieb auf Deutsch.",
+    "Der Eiffelturm steht in Paris.",
+    "Johann Sebastian Bach war ein Komponist.",
+    "Die Oper ist eine Form des Musiktheaters.",
+    "Der Louvre ist ein Museum in Paris.",
+    "Wolfgang Amadeus Mozart war ein Komponist.",
+    'Der Roman "Der Prozess" wurde von Franz Kafka geschrieben.',
+    "Die Sixtinische Kapelle wurde von Michelangelo bemalt.",
+    'Shakespeare schrieb "Romeo und Julia".',
+    "Van Gogh war ein Vertreter des Impressionismus.",
+    "Goethe schrieb auf Deutsch.",
+    "Das Brandenburger Tor steht in Berlin.",
+    "Ludwig van Beethoven war ein Komponist.",
+    "Die Sinfonie ist eine Form der Orchestermusik.",
+    "Das British Museum ist ein Museum in London.",
+    "Johann Wolfgang von Goethe war ein Dichter.",
+    'Der Roman "Faust" wurde von Goethe geschrieben.',
+    "Die Nachtwache wurde von Rembrandt gemalt.",
+    'Shakespeare schrieb "Macbeth".',
+    "Monet war ein Vertreter des Impressionismus.",
+    "Schiller schrieb auf Deutsch.",
+    "Der Kölner Dom steht in Köln.",
+    "Antonio Vivaldi war ein Komponist.",
+    "Das Konzert ist eine Form der Musikaufführung.",
+    "Das Metropolitan Museum ist ein Museum in New York.",
+    "Friedrich Schiller war ein Dichter.",
+    'Der Roman "Die Räuber" wurde von Schiller geschrieben.',
+    "Die Sternennacht wurde von Van Gogh gemalt.",
+    'Shakespeare schrieb "Othello".',
+    "Kandinsky war ein Vertreter der abstrakten Kunst.",
+    "Heine schrieb auf Deutsch.",
+    "Der Petersdom steht in Rom.",
+    "Frédéric Chopin war ein Komponist.",
+    "Die Sonate ist eine Form der Kammermusik.",
+    "Das Prado-Museum ist ein Museum in Madrid.",
+    "Heinrich Heine war ein Dichter.",
+    'Der Roman "Deutschland. Ein Wintermärchen" wurde von Heine geschrieben.',
+    "Die Geburt der Venus wurde von Botticelli gemalt.",
+    'Shakespeare schrieb "König Lear".',
+    "Dali war ein Vertreter des Surrealismus.",
+]
+culture_refuted = [
+    "Wolfgang Amadeus Mozart war ein Maler.",
+    'Die Oper "Carmen" stammt von Richard Wagner.',
+    "Der Eiffelturm steht in Rom.",
+    'Der Roman "Der Prozess" wurde von Ernest Hemingway geschrieben.',
+    "Die Mona Lisa wurde von Vincent van Gogh gemalt.",
+    'Shakespeare schrieb "Der Zauberberg".',
+    "Picasso war ein römischer Kaiser.",
+    "Franz Kafka schrieb auf Latein.",
+    "Der Louvre ist ein Stadion in London.",
+    "Johann Sebastian Bach war ein Astronaut.",
+    "Ludwig van Beethoven wurde in Wien geboren.",
+    'Der Roman "1984" wurde von Aldous Huxley geschrieben.',
+    "Die Mona Lisa wurde von Pablo Picasso gemalt.",
+    'Shakespeare schrieb "Die Verwandlung".',
+    "Picasso war ein Vertreter des Realismus.",
+    "Franz Kafka schrieb auf Englisch.",
+    "Der Eiffelturm steht in London.",
+    "Johann Sebastian Bach war ein Maler.",
+    "Die Oper ist eine Form des Theaters.",
+    "Der Louvre ist ein Konzertsaal in Paris.",
+    "Wolfgang Amadeus Mozart wurde in Berlin geboren.",
+    'Der Roman "Faust" wurde von Schiller geschrieben.',
+    "Die Sixtinische Kapelle wurde von Leonardo da Vinci bemalt.",
+    'Shakespeare schrieb "Die Räuber".',
+    "Van Gogh war ein Vertreter des Kubismus.",
+    "Goethe schrieb auf Französisch.",
+    "Das Brandenburger Tor steht in München.",
+    "Ludwig van Beethoven war ein Maler.",
+    "Die Sinfonie ist eine Form des Theaters.",
+    "Das British Museum ist ein Konzertsaal in London.",
+    "Johann Wolfgang von Goethe wurde in Wien geboren.",
+    'Der Roman "Die Räuber" wurde von Goethe geschrieben.',
+    "Die Nachtwache wurde von Van Gogh gemalt.",
+    'Shakespeare schrieb "Die Geburt der Venus".',
+    "Monet war ein Vertreter des Surrealismus.",
+]
+culture_nei = [
+    "Das meistgesehene Theaterstück Europas im Jahr 2023 war ein deutsches Drama.",
+    "Das teuerste Gemälde der Welt hängt dauerhaft in einem Privatmuseum in Deutschland.",
+    "Der erfolgreichste Film aller Zeiten hat mehr als 3 Milliarden Dollar eingespielt.",
+    "Das meistverkaufte Buch der Welt wurde mehr als 500 Millionen Mal verkauft.",
+    "Die erfolgreichste Band der Welt hat mehr als 500 Millionen Alben verkauft.",
+    "Das teuerste Kunstwerk der Welt kostet mehr als 500 Millionen Euro.",
+    "Der erfolgreichste Komponist hat mehr als 1000 Werke geschrieben.",
+    "Das meistbesuchte Museum der Welt hat mehr als 10 Millionen Besucher pro Jahr.",
+    "Die erfolgreichste Oper wurde mehr als 10.000 Mal aufgeführt.",
+    "Das teuerste Musikinstrument der Welt kostet mehr als 50 Millionen Euro.",
+    "Der erfolgreichste Schauspieler hat mehr als 100 Filme gedreht.",
+    "Das meistgelesene Buch wurde in mehr als 100 Sprachen übersetzt.",
+    "Die erfolgreichste Ausstellung hatte mehr als 5 Millionen Besucher.",
+    "Das teuerste Gemälde wurde für mehr als 400 Millionen Dollar verkauft.",
+    "Der erfolgreichste Maler hat mehr als 2000 Gemälde geschaffen.",
+    "Das meistgespielte Theaterstück wurde mehr als 50.000 Mal aufgeführt.",
+    "Die erfolgreichste Sinfonie wurde mehr als 10.000 Mal aufgeführt.",
+    "Das teuerste Buch der Welt kostet mehr als 10 Millionen Euro.",
+    "Der erfolgreichste Schriftsteller hat mehr als 200 Bücher geschrieben.",
+    "Das meistbesuchte Konzert hatte mehr als 2 Millionen Zuhörer.",
+]
+
+religion_supported = [
+    "Das Christentum ist eine monotheistische Religion.",
+    "Der Islam entstand im 7. Jahrhundert.",
+    "Der Papst ist das Oberhaupt der katholischen Kirche.",
+    "Judentum ist eine monotheistische Religion.",
+    "Der Buddhismus entstand in Indien.",
+    "Der Hinduismus ist eine polytheistische Religion.",
+    "Der Koran ist das heilige Buch des Islam.",
+    "Die Bibel ist das heilige Buch des Christentums.",
+    "Die Thora ist das heilige Buch des Judentums.",
+    "Der Buddhismus hat keinen Schöpfergott.",
+    "Der Islam hat fünf Säulen.",
+    "Das Christentum hat drei Hauptzweige.",
+    "Der Papst residiert im Vatikan.",
+    "Mecca ist die heiligste Stadt des Islam.",
+    "Jerusalem ist eine heilige Stadt für drei Religionen.",
+    "Der Buddhismus lehrt den Achtfachen Pfad.",
+    "Das Christentum lehrt die Dreifaltigkeit.",
+    "Der Islam lehrt die Einheit Gottes.",
+    "Das Judentum lehrt die Tora.",
+    "Der Hinduismus hat viele Götter.",
+    "Der Buddhismus lehrt das Nirwana.",
+    "Das Christentum lehrt das Paradies.",
+]
+religion_refuted = [
+    "Der Buddhismus verehrt einen Schöpfergott.",
+    "Hinduismus ist eine monotheistische Religion.",
+    "Der Islam ist eine polytheistische Religion.",
+    "Das Judentum entstand im 20. Jahrhundert.",
+    "Der Papst ist das Oberhaupt aller Religionen der Welt.",
+    "Der Koran ist das heilige Buch des Christentums.",
+    "Die Bibel ist das heilige Buch des Islam.",
+    "Die Thora ist das heilige Buch des Buddhismus.",
+    "Der Papst residiert in Rom.",
+    "Mecca ist die heiligste Stadt des Christentums.",
+    "Jerusalem ist nur für eine Religion heilig.",
+    "Der Buddhismus lehrt die Dreifaltigkeit.",
+    "Das Christentum lehrt den Achtfachen Pfad.",
+    "Der Islam lehrt die Tora.",
+    "Das Judentum lehrt das Nirwana.",
+    "Der Hinduismus hat nur einen Gott.",
+    "Der Buddhismus lehrt das Paradies.",
+    "Das Christentum lehrt das Nirwana.",
+]
+religion_nei = [
+    "Die größte Religionsgemeinschaft Europas ist in jedem Land dieselbe.",
+    "Die älteste Religion der Welt ist eindeutig dokumentiert und unverändert erhalten.",
+    "Die erfolgreichste Mission hat mehr als 1 Milliarde Menschen bekehrt.",
+    "Das größte religiöse Gebäude der Welt hat Platz für mehr als 1 Million Menschen.",
+    "Die älteste religiöse Schrift ist mehr als 5000 Jahre alt.",
+    "Die erfolgreichste religiöse Bewegung hat mehr als 500 Millionen Anhänger.",
+    "Das teuerste religiöse Artefakt kostet mehr als 100 Millionen Euro.",
+    "Die größte religiöse Versammlung hatte mehr als 10 Millionen Teilnehmer.",
+    "Die älteste religiöse Tradition ist mehr als 10.000 Jahre alt.",
+    "Die erfolgreichste religiöse Organisation hat mehr als 2 Milliarden Mitglieder.",
+]
+
+economy_supported = [
+    "Angebot und Nachfrage beeinflussen den Preis.",
+    "Aktien verbriefen Unternehmensanteile.",
+    "Inflation bedeutet langfristig steigende Durchschnittspreise.",
+    "Eine Zentralbank kann Leitzinsen festlegen.",
+    "Ein Bruttoinlandsprodukt misst wirtschaftliche Leistung.",
+    "Die Mehrwertsteuer ist eine indirekte Steuer.",
+    "Aktien können im Wert steigen oder fallen.",
+    "Ein Staat kann pleitegehen.",
+    "Das Bruttoinlandsprodukt misst die wirtschaftliche Leistung eines Landes.",
+    "Die Zentralbank kann die Geldmenge beeinflussen.",
+    "Der Wechselkurs bestimmt den Wert einer Währung.",
+    "Die Arbeitslosigkeit misst den Anteil der Erwerbslosen.",
+    "Das Wirtschaftswachstum misst die Veränderung des BIP.",
+    "Die Staatsverschuldung ist die Summe aller Schulden eines Staates.",
+    "Die Steuer ist eine Abgabe an den Staat.",
+    "Die Subvention ist eine staatliche Förderung.",
+    "Der Markt ist der Ort des Tauschs.",
+    "Die Konjunktur beschreibt die wirtschaftliche Entwicklung.",
+    "Die Rezession ist eine Phase wirtschaftlichen Abschwungs.",
+    "Die Expansion ist eine Phase wirtschaftlichen Aufschwungs.",
+    "Die Deflation ist ein allgemeiner Preisverfall.",
+    "Die Stagflation ist eine Kombination aus Stagnation und Inflation.",
+]
+economy_refuted = [
+    "Inflation bezeichnet einen allgemeinen Preisverfall.",
+    "Die Mehrwertsteuer ist eine direkte Steuer.",
+    "Aktien sind immer risikofrei.",
+    "Ein Staat kann niemals pleitegehen.",
+    "Das Bruttoinlandsprodukt misst die Höhe eines Berges.",
+    "Angebot und Nachfrage beeinflussen nicht den Preis.",
+    "Aktien verbriefen keine Unternehmensanteile.",
+    "Inflation bedeutet langfristig fallende Durchschnittspreise.",
+    "Eine Zentralbank kann keine Leitzinsen festlegen.",
+    "Ein Bruttoinlandsprodukt misst keine wirtschaftliche Leistung.",
+    "Die Zentralbank kann die Geldmenge nicht beeinflussen.",
+    "Der Wechselkurs bestimmt nicht den Wert einer Währung.",
+    "Die Arbeitslosigkeit misst den Anteil der Erwerbstätigen.",
+    "Das Wirtschaftswachstum misst die Veränderung der Bevölkerung.",
+    "Die Staatsverschuldung ist die Summe aller Einnahmen eines Staates.",
+    "Die Steuer ist eine Einnahme des Staates.",
+    "Die Subvention ist eine staatliche Steuer.",
+    "Der Markt ist der Ort der Produktion.",
+    "Die Konjunktur beschreibt die politische Entwicklung.",
+    "Die Rezession ist eine Phase wirtschaftlichen Aufschwungs.",
+    "Die Expansion ist eine Phase wirtschaftlichen Abschwungs.",
+    "Die Deflation ist ein allgemeiner Preisanstieg.",
+]
+economy_nei = [
+    "Die beste Geldanlage ist immer Gold.",
+    "In jedem Land ist die Inflationsrate exakt gleich.",
+    "Die erfolgreichste Firma der Welt hat mehr als 1 Billion Dollar Umsatz.",
+    "Das teuerste Unternehmen der Welt ist mehr als 5 Billionen Dollar wert.",
+    "Die erfolgreichste Aktie hat ihren Wert in 10 Jahren verzehnfacht.",
+    "Die durchschnittliche Inflationsrate beträgt genau 2 Prozent pro Jahr.",
+    "Das größte Unternehmen der Welt beschäftigt mehr als 2 Millionen Mitarbeiter.",
+    "Die erfolgreichste Währung ist in jedem Land die stabilste.",
+    "Das teuerste Produkt der Welt kostet mehr als 100 Millionen Euro.",
+    "Die durchschnittliche Arbeitslosenquote beträgt genau 5 Prozent.",
+    "Die erfolgreichste Wirtschaft hat ein Wachstum von genau 3 Prozent pro Jahr.",
+]
+
+astro_supported = [
+    "Ein Lichtjahr ist eine Entfernung.",
+    "Der Mond umkreist die Erde.",
+    "Die Milchstraße ist eine Galaxie.",
+    "Jupiter ist ein Gasriese.",
+    "Die Sonne ist ein Stern.",
+    "Die Erde umkreist die Sonne.",
+    "Mars ist ein Planet.",
+    "Venus ist ein Planet.",
+    "Saturn hat Ringe.",
+    "Neptun ist der äußerste Planet des Sonnensystems.",
+    "Pluto ist ein Zwergplanet.",
+    "Ein Stern ist eine leuchtende Gaskugel.",
+    "Ein Planet umkreist einen Stern.",
+    "Ein Asteroid ist ein kleiner Himmelskörper.",
+    "Ein Komet besteht aus Eis und Staub.",
+    "Die Sonne ist der Mittelpunkt des Sonnensystems.",
+    "Die Erde hat einen Mond.",
+    "Der Mars hat zwei Monde.",
+    "Der Jupiter hat viele Monde.",
+    "Die Venus hat keinen Mond.",
+    "Der Merkur ist der sonnennächste Planet.",
+    "Der Uranus ist ein Gasplanet.",
+]
+astro_refuted = [
+    "Die Sonne ist ein Planet.",
+    "Jupiter ist der kleinste Planet des Sonnensystems.",
+    "Ein Lichtjahr ist eine Zeitangabe.",
+    "Die Erde hat zwei Monde.",
+    "Die Milchstraße ist ein Planet.",
+    "Der Mond umkreist die Sonne.",
+    "Mars ist ein Stern.",
+    "Venus ist ein Stern.",
+    "Saturn hat keine Ringe.",
+    "Neptun ist der innerste Planet des Sonnensystems.",
+    "Pluto ist ein Planet.",
+    "Ein Stern ist ein Planet.",
+    "Ein Planet umkreist einen Planeten.",
+    "Ein Asteroid ist ein Stern.",
+    "Ein Komet besteht aus Gas.",
+    "Die Sonne ist ein Planet.",
+    "Die Erde hat zwei Monde.",
+    "Der Mars hat keinen Mond.",
+    "Der Jupiter hat keinen Mond.",
+    "Die Venus hat einen Mond.",
+    "Der Merkur ist der sonnenfernste Planet.",
+    "Der Uranus ist ein Gesteinsplanet.",
+]
+astro_nei = [
+    "Die nächste bewohnbare Exoplanetenwelt ist weniger als 5 Lichtjahre entfernt.",
+    "Astronomen haben ein eindeutiges Signal von außerirdischer Intelligenz bestätigt.",
+    "Die größte Galaxie im Universum hat mehr als 1 Billion Sterne.",
+    "Der nächste bewohnbare Planet ist genau 4,2 Lichtjahre entfernt.",
+    "Die durchschnittliche Temperatur im Weltraum beträgt genau -270 Grad Celsius.",
+    "Der größte Planet im Universum ist mehr als 100 Mal größer als Jupiter.",
+    "Die erfolgreichste Raummission hat mehr als 50 Planeten entdeckt.",
+    "Die durchschnittliche Entfernung zwischen Sternen beträgt genau 5 Lichtjahre.",
+    "Der nächste Stern ist genau 4,24 Lichtjahre entfernt.",
+    "Die größte Sonne im Universum ist mehr als 2000 Mal größer als unsere Sonne.",
+]
+
+comparisons_supported = [
+    "Der Mount Everest ist höher als der Mont Blanc.",
+    "Afrika ist größer als Europa.",
+    "Gold ist dichter als Wasser.",
+    "Ein Marathon ist länger als ein Halbmarathon.",
+    "Ein Kilometer ist länger als ein Meter.",
+    "Der Nil ist länger als der Rhein.",
+    "Der Amazonas ist länger als der Nil.",
+    "Der Mount Everest ist höher als der Kilimandscharo.",
+    "Asien ist größer als Afrika.",
+    "Der Pazifik ist größer als der Atlantik.",
+    "Jupiter ist größer als die Erde.",
+    "Die Sonne ist größer als die Erde.",
+    "Ein Meter ist länger als ein Zentimeter.",
+    "Ein Kilogramm ist schwerer als ein Gramm.",
+    "Ein Liter ist größer als ein Milliliter.",
+    "Ein Tag ist länger als eine Stunde.",
+    "Ein Jahr ist länger als ein Monat.",
+    "Ein Jahrhundert ist länger als ein Jahrzehnt.",
+    "Ein Meter ist länger als ein Dezimeter.",
+    "Ein Kilometer ist länger als ein Meter.",
+    "Ein Ton ist schwerer als ein Kilogramm.",
+    "Ein Gigabyte ist größer als ein Megabyte.",
+]
+comparisons_refuted = [
+    "Der Bodensee ist größer als das Kaspische Meer.",
+    "Europa ist größer als Afrika.",
+    "Ein Meter ist länger als ein Kilometer.",
+    "Ein Halbmarathon ist länger als ein Marathon.",
+    "Wasser ist dichter als Gold.",
+    "Der Rhein ist länger als der Nil.",
+    "Der Nil ist länger als der Amazonas.",
+    "Der Kilimandscharo ist höher als der Mount Everest.",
+    "Afrika ist größer als Asien.",
+    "Der Atlantik ist größer als der Pazifik.",
+    "Die Erde ist größer als Jupiter.",
+    "Die Erde ist größer als die Sonne.",
+    "Ein Zentimeter ist länger als ein Meter.",
+    "Ein Gramm ist schwerer als ein Kilogramm.",
+    "Ein Milliliter ist größer als ein Liter.",
+    "Eine Stunde ist länger als ein Tag.",
+    "Ein Monat ist länger als ein Jahr.",
+    "Ein Jahrzehnt ist länger als ein Jahrhundert.",
+    "Ein Dezimeter ist länger als ein Meter.",
+    "Ein Meter ist länger als ein Kilometer.",
+    "Ein Kilogramm ist schwerer als eine Tonne.",
+    "Ein Megabyte ist größer als ein Gigabyte.",
+]
+comparisons_nei = [
+    "Deutschland hat mehr Berge als Österreich.",
+    "Der beliebteste Fluss Europas ist länger als der längste Fluss Afrikas.",
+    "Der höchste Berg Europas ist höher als der höchste Berg Asiens.",
+    "Die größte Stadt Europas ist größer als die größte Stadt Amerikas.",
+    "Der längste Fluss Europas ist länger als der längste Fluss Asiens.",
+    "Die tiefste Stelle im Meer ist tiefer als der höchste Berg der Welt.",
+    "Der größte See Europas ist größer als der größte See Amerikas.",
+    "Die schnellste Geschwindigkeit auf der Erde ist schneller als die schnellste Geschwindigkeit im Weltraum.",
+    "Der kälteste Ort der Erde ist kälter als der kälteste Ort im Weltraum.",
+    "Die größte Wüste der Welt ist größer als der größte Kontinent.",
+]
+
+gk_supported = [
+    "Ein Jahr hat zwölf Monate.",
+    "Wasser gefriert bei 0 Grad Celsius.",
+    "Paris ist eine Hauptstadt.",
+    "Ein Dreieck hat drei Seiten.",
+    "Die Woche hat sieben Tage.",
+    "Ein Tag hat 24 Stunden.",
+    "Eine Stunde hat 60 Minuten.",
+    "Eine Minute hat 60 Sekunden.",
+    "Ein Monat hat etwa 30 Tage.",
+    "Ein Jahr hat 365 Tage.",
+    "Ein Schaltjahr hat 366 Tage.",
+    "Ein Quadrat hat vier Seiten.",
+    "Ein Kreis hat keine Ecken.",
+    "Ein Würfel hat sechs Seiten.",
+    "Ein Rechteck hat vier Seiten.",
+    "Wasser kocht bei 100 Grad Celsius.",
+    "Eis schmilzt bei 0 Grad Celsius.",
+    "Ein Meter hat 100 Zentimeter.",
+    "Ein Kilometer hat 1000 Meter.",
+    "Ein Kilogramm hat 1000 Gramm.",
+    "Ein Liter hat 1000 Milliliter.",
+    "Ein Dutzend hat zwölf Stück.",
+    "Ein Gros hat 144 Stück.",
+    "Ein Jahrhundert hat 100 Jahre.",
+    "Ein Jahrtausend hat 1000 Jahre.",
+    "Ein Jahrzehnt hat 10 Jahre.",
+    "Ein Meter hat 10 Dezimeter.",
+    "Ein Dezimeter hat 10 Zentimeter.",
+    "Ein Zentimeter hat 10 Millimeter.",
+    "Ein Kilogramm hat 1000 Gramm.",
+    "Ein Gramm hat 1000 Milligramm.",
+    "Ein Ton hat 1000 Kilogramm.",
+    "Ein Liter hat 10 Deziliter.",
+    "Ein Deziliter hat 10 Zentiliter.",
+    "Ein Zentiliter hat 10 Milliliter.",
+    "Ein Quadratmeter hat 100 Quadratdezimeter.",
+    "Ein Kubikmeter hat 1000 Kubikdezimeter.",
+    "Ein Grad hat 60 Minuten.",
+    "Eine Minute hat 60 Sekunden.",
+    "Ein Prozent ist ein Hundertstel.",
+    "Ein Promille ist ein Tausendstel.",
+    "Ein Drittel ist ein Teil von drei.",
+    "Ein Viertel ist ein Teil von vier.",
+    "Ein Halb ist ein Teil von zwei.",
+    "Ein Ganzes ist ein Teil von eins.",
+]
+gk_refuted = [
+    "Der Mensch hat drei Lungen.",
+    "Die Erde hat zwei Monde.",
+    "Ein Quadrat hat fünf Seiten.",
+    "Ein Jahr hat zehn Monate.",
+    "Wasser kocht bei 10 Grad Celsius.",
+    "Ein Tag hat 20 Stunden.",
+    "Eine Stunde hat 50 Minuten.",
+    "Eine Minute hat 50 Sekunden.",
+    "Ein Monat hat etwa 20 Tage.",
+    "Ein Jahr hat 300 Tage.",
+    "Ein Schaltjahr hat 365 Tage.",
+    "Ein Quadrat hat drei Seiten.",
+    "Ein Kreis hat Ecken.",
+    "Ein Würfel hat acht Seiten.",
+    "Ein Rechteck hat drei Seiten.",
+    "Wasser kocht bei 50 Grad Celsius.",
+    "Eis schmilzt bei 10 Grad Celsius.",
+    "Ein Meter hat 10 Zentimeter.",
+    "Ein Kilometer hat 100 Meter.",
+    "Ein Kilogramm hat 100 Gramm.",
+    "Ein Liter hat 100 Milliliter.",
+    "Ein Dutzend hat zehn Stück.",
+    "Ein Gros hat 100 Stück.",
+    "Ein Jahrhundert hat 10 Jahre.",
+    "Ein Jahrtausend hat 100 Jahre.",
+    "Ein Jahrzehnt hat 5 Jahre.",
+    "Ein Meter hat 100 Dezimeter.",
+    "Ein Dezimeter hat 100 Zentimeter.",
+    "Ein Zentimeter hat 100 Millimeter.",
+    "Ein Kilogramm hat 100 Gramm.",
+    "Ein Gramm hat 100 Milligramm.",
+    "Ein Ton hat 100 Kilogramm.",
+    "Ein Liter hat 100 Deziliter.",
+    "Ein Deziliter hat 100 Zentiliter.",
+    "Ein Zentiliter hat 100 Milliliter.",
+    "Ein Quadratmeter hat 10 Quadratdezimeter.",
+    "Ein Kubikmeter hat 100 Kubikdezimeter.",
+    "Ein Grad hat 50 Minuten.",
+    "Eine Minute hat 50 Sekunden.",
+    "Ein Prozent ist ein Zehntel.",
+    "Ein Promille ist ein Hundertstel.",
+    "Ein Drittel ist ein Teil von zwei.",
+    "Ein Viertel ist ein Teil von drei.",
+    "Ein Halb ist ein Teil von drei.",
+    "Ein Ganzes ist ein Teil von zwei.",
+]
+gk_nei = [
+    "Das längste deutsche Wort hat genau 80 Buchstaben.",
+    "Die am häufigsten gesprochene Sprache der Welt ist in jedem Jahr dieselbe.",
+    "Die durchschnittliche Lesegeschwindigkeit beträgt genau 250 Wörter pro Minute.",
+    "Das häufigste Wort in der deutschen Sprache wird mehr als 1 Million Mal pro Tag verwendet.",
+    "Die durchschnittliche Anzahl der Wörter im deutschen Wortschatz beträgt genau 500.000.",
+    "Das längste Wort in der deutschen Sprache hat mehr als 100 Buchstaben.",
+    "Die erfolgreichste Sprache wird von mehr als 2 Milliarden Menschen gesprochen.",
+    "Die durchschnittliche Anzahl der Buchstaben im Alphabet beträgt genau 26.",
+    "Das häufigste Buchstabenpaar erscheint in mehr als 10 Prozent aller Wörter.",
+    "Die durchschnittliche Anzahl der Silben pro Wort beträgt genau 2,5.",
+    "Das längste zusammengesetzte Wort hat mehr als 80 Buchstaben.",
+    "Die erfolgreichste Schrift wird von mehr als 1 Milliarde Menschen verwendet.",
+    "Die durchschnittliche Anzahl der Wörter pro Satz beträgt genau 15.",
+    "Das häufigste Wort wird in mehr als 5 Prozent aller Sätze verwendet.",
+    "Die erfolgreichste Sprache hat mehr als 1 Million Wörter.",
+    "Die durchschnittliche Anzahl der Buchstaben pro Wort beträgt genau 5.",
+    "Das längste Wort ohne Vokale hat mehr als 10 Buchstaben.",
+    "Die erfolgreichste Sprache wird in mehr als 100 Ländern gesprochen.",
+    "Die durchschnittliche Anzahl der Sprachen der Welt beträgt genau 7000.",
+    "Das häufigste Wort wird mehr als 1 Milliarde Mal pro Tag verwendet.",
+]
+
+# -----------------------
+# Topic generators (respecting your constraints)
+# -----------------------
+
+def make_geo_city_claims(n=100):
+    supported_pool = (
+        [f"{cap} ist die Hauptstadt von {country}." for country, cap in capitals]
+        + [f"{city} liegt in {country}." for city, country in city_country]
+    )
+    countries = [c for c, _ in capitals]
+    caps = [cap for _, cap in capitals]
+
+    refuted_pool = []
+    for country, cap in capitals:
+        wrong_country = random.choice([c for c in countries if c != country])
+        wrong_cap = random.choice([x for x in caps if x != cap])
+        refuted_pool.append(f"{cap} ist die Hauptstadt von {wrong_country}.")
+        refuted_pool.append(f"{wrong_cap} ist die Hauptstadt von {country}.")
+    for city, country in city_country:
+        wrong_country = random.choice([c for c in countries if c != country])
+        refuted_pool.append(f"{city} liegt in {wrong_country}.")
+
+    nei_pool = [
+        "Die größte Stadt Europas ist eindeutig Paris.",
+        "Die bevölkerungsreichste Stadt der Welt liegt in Indien.",
+        "Die durchschnittliche Bevölkerungsdichte von Deutschland beträgt genau 233 Einwohner pro km².",
+        "Die schnellstwachsende Hauptstadt der Welt liegt in Afrika.",
+        "Die größte Stadt Asiens ist eindeutig Tokio.",
+        "Die bevölkerungsreichste Stadt Europas liegt in Russland.",
+        "Die durchschnittliche Bevölkerungsdichte von Frankreich beträgt genau 120 Einwohner pro km².",
+        "Die schnellstwachsende Stadt der Welt liegt in China.",
+        "Die größte Stadt Amerikas ist eindeutig New York.",
+        "Die bevölkerungsreichste Stadt Afrikas liegt in Nigeria.",
+        "Die durchschnittliche Bevölkerungsdichte von Italien beträgt genau 200 Einwohner pro km².",
+        "Die schnellstwachsende Stadt Europas liegt in Spanien.",
+        "Die größte Stadt Afrikas ist eindeutig Kairo.",
+        "Die bevölkerungsreichste Stadt Asiens liegt in China.",
+        "Die durchschnittliche Bevölkerungsdichte von Spanien beträgt genau 95 Einwohner pro km².",
+        "Die schnellstwachsende Stadt Amerikas liegt in Brasilien.",
+        "Die größte Stadt der Welt hat mehr als 30 Millionen Einwohner.",
+        "Die bevölkerungsreichste Hauptstadt der Welt liegt in Asien.",
+        "Die durchschnittliche Bevölkerungsdichte der Welt beträgt genau 50 Einwohner pro km².",
+        "Die schnellstwachsende Metropole der Welt verdoppelt ihre Einwohnerzahl alle 10 Jahre.",
+    ]
+    return pick_label_mix(supported_pool, refuted_pool, nei_pool, n)
+
+def make_geo_physical_claims(n=50):
+    supported_pool = []
+    refuted_pool = []
+    for river, region in rivers:
+        supported_pool += [f"Der {river} ist ein Fluss.", f"Der {river} fließt durch {region}."]
+        refuted_pool.append(f"Der {river} ist ein Gebirge.")
+    for m, _ in mountains:
+        supported_pool.append(f"{m} ist ein Berg.")
+        refuted_pool.append(f"{m} liegt in Australien.")
+    for sea, _ in seas:
+        supported_pool.append(f"Das {sea} ist ein Meer.")
+        refuted_pool.append(f"Das {sea} ist ein Fluss.")
+
+    refuted_pool += [
+        "Die Donau mündet in die Nordsee.",
+        "Der Nil fließt durch Kanada.",
+        "Der Mont Blanc liegt in Südamerika.",
+    ]
+    nei_pool = [
+        "Der längste Fluss Europas ist länger als 5000 Kilometer.",
+        "Das tiefste Meer Europas ist tiefer als 12.000 Meter.",
+        "Der höchste Berg Europas ist der Mont Blanc und misst genau 4810 Meter über Meer.",
+        "Der längste Fluss der Welt ist länger als 7000 Kilometer.",
+        "Das tiefste Meer der Welt ist tiefer als 11.000 Meter.",
+        "Der höchste Berg der Welt misst genau 8848 Meter über Meer.",
+        "Der längste Fluss Asiens ist länger als 6000 Kilometer.",
+        "Das tiefste Meer Asiens ist tiefer als 10.000 Meter.",
+        "Der höchste Berg Asiens misst genau 8800 Meter über Meer.",
+        "Der längste Fluss Afrikas ist länger als 6500 Kilometer.",
+    ]
+    return pick_label_mix(supported_pool, refuted_pool, nei_pool, n)
+
+def make_politics_office(n=50):
+    # NOTE: avoid "current office holders" as they are time-variant; use constitutional + historical.
+    supported_pool = [s for s, l in politics_office_facts if l == "SUPPORTED"] + [
+        "Barack Obama war von 2009 bis 2017 Präsident der USA.",
+        "Angela Merkel war von 2005 bis 2021 Bundeskanzlerin von Deutschland.",
+        "Die Bundeskanzlerin oder der Bundeskanzler leitet in Deutschland die Bundesregierung.",
+        "Margaret Thatcher war von 1979 bis 1990 Premierministerin des Vereinigten Königreichs.",
+        "Winston Churchill war von 1940 bis 1945 und 1951 bis 1955 Premierminister des Vereinigten Königreichs.",
+        "Charles de Gaulle war von 1959 bis 1969 Präsident von Frankreich.",
+        "Konrad Adenauer war von 1949 bis 1963 Bundeskanzler von Deutschland.",
+        "Helmut Kohl war von 1982 bis 1998 Bundeskanzler von Deutschland.",
+        "Ronald Reagan war von 1981 bis 1989 Präsident der USA.",
+        "Bill Clinton war von 1993 bis 2001 Präsident der USA.",
+        "George W. Bush war von 2001 bis 2009 Präsident der USA.",
+        "Der Bundespräsident von Deutschland wird von der Bundesversammlung gewählt.",
+        "Der Bundeskanzler von Deutschland wird vom Bundestag gewählt.",
+        "Der Präsident von Frankreich wird direkt vom Volk gewählt.",
+        "Der Premierminister des Vereinigten Königreichs wird vom Monarchen ernannt.",
+        "Der Präsident der USA wird vom Electoral College gewählt.",
+        "Der Bundespräsident ist das Staatsoberhaupt von Deutschland.",
+        "Der Bundeskanzler ist der Regierungschef von Deutschland.",
+        "Der Präsident von Frankreich ist das Staatsoberhaupt und der Regierungschef.",
+        "Der Premierminister des Vereinigten Königreichs ist der Regierungschef.",
+    ]
+    refuted_pool = [s for s, l in politics_office_facts if l == "REFUTED"] + [
+        "Barack Obama war von 2017 bis 2021 Präsident der USA.",
+        "Angela Merkel war 2019 Präsidentin von Frankreich.",
+        "Der Bundeskanzler von Deutschland wird direkt vom Volk gewählt.",
+        "Der Papst wird durch eine Volksabstimmung gewählt.",
+        "Margaret Thatcher war Präsidentin des Vereinigten Königreichs.",
+        "Winston Churchill war Präsident von Großbritannien.",
+        "Charles de Gaulle war Bundeskanzler von Frankreich.",
+        "Konrad Adenauer war Präsident von Deutschland.",
+        "Helmut Kohl war Präsident von Deutschland.",
+        "Ronald Reagan war Premierminister der USA.",
+        "Bill Clinton war Bundeskanzler der USA.",
+        "George W. Bush war Premierminister der USA.",
+        "Der Bundespräsident von Deutschland wird direkt vom Volk gewählt.",
+        "Der Bundeskanzler von Deutschland wird vom Volk direkt gewählt.",
+        "Der Präsident von Frankreich wird vom Parlament gewählt.",
+        "Der Premierminister des Vereinigten Königreichs wird direkt vom Volk gewählt.",
+        "Der Präsident der USA wird direkt vom Volk gewählt.",
+        "Der Bundespräsident ist der Regierungschef von Deutschland.",
+        "Der Bundeskanzler ist das Staatsoberhaupt von Deutschland.",
+        "Der Präsident von Frankreich wird vom Monarchen ernannt.",
+    ]
+    nei_pool = [
+        "Der beliebteste Regierungschef Europas im Jahr 2024 war der Präsident von Frankreich.",
+        "Der dienstälteste Minister in Deutschland ist aktuell der Außenminister.",
+        "Der erfolgreichste Politiker Europas hat mehr als 30 Jahre im Amt verbracht.",
+        "Die beliebteste Partei Europas hat mehr als 50 Prozent Zustimmung.",
+        "Der dienstälteste Kanzler in Europa war mehr als 20 Jahre im Amt.",
+        "Die erfolgreichste Regierung Europas hat mehr als 10 Jahre Bestand.",
+        "Der beliebteste Präsident der Welt hat mehr als 80 Prozent Zustimmung.",
+        "Die erfolgreichste Partei der Welt hat mehr als 200 Millionen Mitglieder.",
+        "Der dienstälteste Minister der Welt war mehr als 25 Jahre im Amt.",
+        "Die beliebteste Regierung der Welt hat mehr als 90 Prozent Zustimmung.",
+    ]
+    return pick_label_mix(supported_pool, refuted_pool, nei_pool, n)
+
+def make_politics_general(n=100):
+    supported_pool = [s for s, l in politics_general_facts if l == "SUPPORTED"] + [
+        "Deutschland ist Mitglied der Europäischen Union.",
+        "Die Europäische Union hat 27 Mitgliedstaaten.",
+        "Die NATO wurde 1949 gegründet.",
+        "Die Vereinten Nationen haben ihren Hauptsitz in New York.",
+        "Der Euro ist die Währung von 20 EU-Mitgliedstaaten.",
+        "Die Schweiz ist Mitglied des Schengen-Raums.",
+        "Norwegen ist Mitglied der NATO, aber nicht der EU.",
+        "Das Europäische Parlament hat seinen Sitz in Straßburg und Brüssel.",
+        "Der Europäische Rat setzt sich aus den Staats- und Regierungschefs zusammen.",
+        "Die Europäische Kommission ist das Exekutivorgan der EU.",
+        "Der Europäische Gerichtshof ist das höchste Gericht der EU.",
+        "Die Europäische Zentralbank hat ihren Sitz in Frankfurt am Main.",
+        "Die Europäische Menschenrechtskonvention wurde 1950 unterzeichnet.",
+        "Der Europarat hat 46 Mitgliedstaaten.",
+        "Die OSZE hat 57 Teilnehmerstaaten.",
+        "Die G7 besteht aus sieben Industrienationen.",
+        "Die G20 besteht aus 20 Industrie- und Schwellenländern.",
+        "Die Afrikanische Union hat 55 Mitgliedstaaten.",
+        "Die Arabische Liga hat 22 Mitgliedstaaten.",
+        "Die ASEAN hat 10 Mitgliedstaaten.",
+        "Die Mercosur ist ein Wirtschaftsbündnis in Südamerika.",
+        "Die NAFTA wurde durch das USMCA ersetzt.",
+        "Die WTO hat 164 Mitgliedstaaten.",
+        "Die Weltbank hat ihren Hauptsitz in Washington D.C.",
+        "Der Internationale Währungsfonds hat seinen Hauptsitz in Washington D.C.",
+        "Die OECD hat 38 Mitgliedstaaten.",
+        "Die BRICS-Staaten sind Brasilien, Russland, Indien, China und Südafrika.",
+        "Die Europäische Freihandelsassoziation hat vier Mitgliedstaaten.",
+        "Die Benelux-Union besteht aus Belgien, den Niederlanden und Luxemburg.",
+        "Die Visegrád-Gruppe besteht aus Polen, Tschechien, Slowakei und Ungarn.",
+        "Die Nordische Union besteht aus Dänemark, Finnland, Island, Norwegen und Schweden.",
+        "Die Baltischen Staaten sind Estland, Lettland und Litauen.",
+        "Die Europäische Atomgemeinschaft wurde 1957 gegründet.",
+        "Die Europäische Wirtschaftsgemeinschaft wurde 1957 gegründet.",
+        "Die Europäische Gemeinschaft für Kohle und Stahl wurde 1951 gegründet.",
+        "Die Europäische Union wurde 1993 durch den Vertrag von Maastricht gegründet.",
+        "Der Vertrag von Lissabon trat 2009 in Kraft.",
+        "Die Europäische Charta der Grundrechte wurde 2000 proklamiert.",
+        "Der Europäische Binnenmarkt wurde 1993 vollendet.",
+    ]
+    refuted_pool = [s for s, l in politics_general_facts if l == "REFUTED"] + [
+        "Deutschland ist kein Mitglied der Europäischen Union.",
+        "Die Europäische Union hat 30 Mitgliedstaaten.",
+        "Die NATO wurde 1950 gegründet.",
+        "Die Vereinten Nationen haben ihren Hauptsitz in Genf.",
+        "Der Euro ist die Währung von allen EU-Mitgliedstaaten.",
+        "Die Schweiz ist Mitglied der Europäischen Union.",
+        "Norwegen ist Mitglied der Europäischen Union.",
+        "Das Europäische Parlament hat seinen Sitz nur in Brüssel.",
+        "Der Europäische Rat besteht aus den Außenministern.",
+        "Die Europäische Kommission ist das Parlament der EU.",
+        "Der Europäische Gerichtshof ist das höchste Gericht der Welt.",
+        "Die Europäische Zentralbank hat ihren Sitz in Berlin.",
+        "Die Europäische Menschenrechtskonvention wurde 1945 unterzeichnet.",
+        "Der Europarat hat 50 Mitgliedstaaten.",
+        "Die OSZE hat 60 Teilnehmerstaaten.",
+        "Die G7 besteht aus acht Industrienationen.",
+        "Die G20 besteht aus 25 Industrie- und Schwellenländern.",
+        "Die Afrikanische Union hat 54 Mitgliedstaaten.",
+        "Die Arabische Liga hat 20 Mitgliedstaaten.",
+        "Die ASEAN hat 12 Mitgliedstaaten.",
+        "Die Mercosur ist ein Militärbündnis in Südamerika.",
+        "Die NAFTA existiert noch immer.",
+        "Die WTO hat 200 Mitgliedstaaten.",
+        "Die Weltbank hat ihren Hauptsitz in New York.",
+        "Der Internationale Währungsfonds hat seinen Hauptsitz in Genf.",
+        "Die OECD hat 50 Mitgliedstaaten.",
+        "Die BRICS-Staaten sind Brasilien, Russland, Indien, China und Japan.",
+        "Die Europäische Freihandelsassoziation hat sechs Mitgliedstaaten.",
+        "Die Benelux-Union besteht aus Belgien, den Niederlanden, Luxemburg und Deutschland.",
+        "Die Visegrád-Gruppe besteht aus Polen, Tschechien, Slowakei, Ungarn und Österreich.",
+        "Die Nordische Union besteht aus Dänemark, Finnland, Island, Norwegen, Schweden und Estland.",
+        "Die Baltischen Staaten sind Estland, Lettland, Litauen und Polen.",
+        "Die Europäische Atomgemeinschaft wurde 1951 gegründet.",
+        "Die Europäische Wirtschaftsgemeinschaft wurde 1951 gegründet.",
+        "Die Europäische Gemeinschaft für Kohle und Stahl wurde 1957 gegründet.",
+        "Die Europäische Union wurde 1992 durch den Vertrag von Maastricht gegründet.",
+        "Der Vertrag von Lissabon trat 2007 in Kraft.",
+        "Die Europäische Charta der Grundrechte wurde 1990 proklamiert.",
+        "Der Europäische Binnenmarkt wurde 1992 vollendet.",
+    ]
+    nei_pool = [
+        "In Russland gibt es vollständig freie Mehrparteienwahlen.",
+        "In allen EU-Mitgliedstaaten gelten identische Wahlgesetze.",
+        "Die Zustimmung zur Demokratie ist in Europa überall über 90 Prozent.",
+        "Der Korruptionsindex eines Landes entspricht exakt der Zahl der Verurteilungen pro Jahr.",
+        "In China gibt es vollständig freie Mehrparteienwahlen.",
+        "In allen Ländern der Welt gelten identische Wahlgesetze.",
+        "Die Zustimmung zur Demokratie ist weltweit überall über 85 Prozent.",
+        "Der Korruptionsindex eines Landes entspricht exakt der Zahl der Politiker pro Jahr.",
+        "In Nordkorea gibt es vollständig freie Mehrparteienwahlen.",
+        "In allen Demokratien gelten identische Wahlgesetze.",
+        "Die Zustimmung zur Demokratie ist in Amerika überall über 95 Prozent.",
+        "Der Korruptionsindex eines Landes entspricht exakt der Zahl der Wahlen pro Jahr.",
+        "In allen Ländern Europas gelten identische Wahlgesetze.",
+        "Die Zustimmung zur Demokratie ist in Asien überall über 80 Prozent.",
+        "Der Korruptionsindex eines Landes entspricht exakt der Zahl der Parteien pro Jahr.",
+        "In allen Ländern der Welt gibt es vollständig freie Wahlen.",
+        "Die Zustimmung zur Demokratie ist in Afrika überall über 75 Prozent.",
+        "Der Korruptionsindex eines Landes entspricht exakt der Zahl der Regierungen pro Jahr.",
+        "In allen Ländern gelten identische Verfassungen.",
+        "Die Zustimmung zur Demokratie ist weltweit überall über 88 Prozent.",
+    ]
+    return pick_label_mix(supported_pool, refuted_pool, nei_pool, n)
+
+def make_from_lists(n, sup, ref, nei):
+    return pick_label_mix(sup, ref, nei, n)
+
+generators = {
+    "geography_city": make_geo_city_claims,
+    "geography_physical": make_geo_physical_claims,
+    "politics_office": make_politics_office,
+    "politics_general": make_politics_general,
+    "science": lambda n: make_from_lists(n, science_supported, science_refuted, science_nei),
+    "sport": lambda n: make_from_lists(n, sport_supported, sport_refuted, sport_nei),
+    "biology_medicine": lambda n: make_from_lists(n, bio_supported, bio_refuted, bio_nei),
+    "culture": lambda n: make_from_lists(n, culture_supported, culture_refuted, culture_nei),
+    "religion": lambda n: make_from_lists(n, religion_supported, religion_refuted, religion_nei),
+    "economy": lambda n: make_from_lists(n, economy_supported, economy_refuted, economy_nei),
+    "astronomy": lambda n: make_from_lists(n, astro_supported, astro_refuted, astro_nei),
+    "comparison": lambda n: make_from_lists(n, comparisons_supported, comparisons_refuted, comparisons_nei),
+    "general_knowledge": lambda n: make_from_lists(n, gk_supported, gk_refuted, gk_nei),
+}
+
+# -----------------------
+# Build dataset
+# -----------------------
+
+rows = []
+idx = 1
+for topic, n in taxonomy:
+    items = generators[topic](n)
+    for claim, expected in items:
+        rows.append({
+            "id": f"seed1000_{idx:04d}",
+            "topic": topic,
+            "claim": norm_space(claim),
+            "expected": expected,
+        })
+        idx += 1
+
+assert len(rows) == TOTAL
+
+# Write JSONL
+with OUT_PATH.open("w", encoding="utf-8") as f:
+    for r in rows:
+        f.write(json.dumps(r, ensure_ascii=False) + "\n")
+
+# Print quick stats
+topic_counts = Counter(r["topic"] for r in rows)
+label_counts = Counter(r["expected"] for r in rows)
+dups = len(rows) - len(set(r["claim"] for r in rows))
+
+print("Wrote:", OUT_PATH.as_posix())
+print("Total:", len(rows))
+print("Topic counts:", dict(topic_counts))
+print("Label counts:", dict(label_counts))
+print("Duplicate claim strings:", dups)
