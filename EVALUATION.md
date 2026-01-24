@@ -91,6 +91,66 @@ This document summarizes the evaluation results of the German Fact-Checking Serv
 - **Verification**: NLI-based with multi-evidence aggregation
 - **Post-Processing**: Domain-specific heuristics (population, geo, temporal)
 
-## Conclusion
+## Reproducibility
 
-The system achieves **77.29% accuracy** when only considering cases where it makes a definitive decision (NEI=Neutral metric), demonstrating strong performance on verifiable claims. Geographic and comparison claims show particularly strong results, while broader domains like religion and general knowledge present challenges.
+### Evaluation Scripts
+- **Batch Fact-Checking**: `scripts/eval/batch_factcheck.py`
+- **Topic Accuracy Analysis**: `scripts/eval/analyze_topic_accuracy.py`
+- **Error Analysis**: `scripts/eval/analyze_phase2_errors.py`
+- **Cache Performance**: `scripts/eval/analyze_phase2_warm.py`
+
+### Model Versions
+- **NLI Model**: `cross-encoder/nli-deberta-v3-base` (commit: latest from Hugging Face)
+- **Embedding Model**: `paraphrase-multilingual-MiniLM-L12-v2` (commit: latest from Hugging Face)
+- **Python**: 3.9+
+- **PyTorch**: 2.1.0+
+- **Transformers**: 4.35.0+
+
+### Configuration
+- **NLI Threshold**: 0.75 (entailment/contradiction)
+- **Cross-Encoder Reranking**: Disabled for seed1000 evaluation (Stage 2 not used)
+- **Max Pages**: 3 (Wikipedia retrieval)
+- **Top-K Evidences**: 3 (for NLI verification)
+
+### Random Seed
+- Dataset generation: No explicit seed (deterministic claim pools)
+- Model inference: Deterministic (torch.manual_seed not set, but models are deterministic by default)
+
+### Dataset
+- **Format**: JSONL (one JSON object per line)
+- **License**: Academic/Research use only
+- **Availability**: Not publicly distributed (contains copyrighted Wikipedia content)
+- **Demo Version**: A small subset can be generated using `scripts/eval/generate_detect_stress_200.py` for testing
+
+## Full Conclusions
+
+### Performance Summary
+The German Fact-Checking Service demonstrates **strong performance on verifiable claims** with a 77.29% accuracy rate when the system makes a definitive decision. This indicates:
+
+1. **High Reliability**: When evidence is found and the system is confident, it is correct 77% of the time
+2. **Conservative Approach**: The system prefers returning NOT_ENOUGH_INFO over making incorrect decisions (60% standard accuracy includes many correct NEI predictions)
+3. **Domain-Specific Strengths**: Geographic claims achieve 83-93% accuracy, showing the system excels on well-structured factual data
+
+### Limitations
+1. **Broad Domains**: General knowledge and religion show lower accuracy (48-44%), likely due to:
+   - Ambiguous or interpretive claims
+   - Limited evidence in Wikipedia
+   - Complex temporal/historical reasoning required
+
+2. **Retrieval Challenges**: 24.4% of errors are due to evidence not being found, suggesting:
+   - Need for better query construction
+   - Potential for additional data sources
+   - Improved semantic search capabilities
+
+3. **Conservative Thresholds**: The 0.75 NLI threshold may be too conservative, leading to many NOT_ENOUGH_INFO predictions for verifiable claims
+
+### Recommendations for Future Work
+1. **Lower NLI Thresholds**: Experiment with topic-specific thresholds (e.g., 0.70 for geography, 0.80 for religion)
+2. **Enhanced Retrieval**: Improve query expansion and semantic search for broad domains
+3. **Temporal Reasoning**: Better handling of historical vs. current claims
+4. **Multi-Source Evidence**: Integrate additional knowledge bases beyond Wikipedia/Wikidata
+
+### Evaluation Transparency
+- **Raw Results**: Available in `results/seed1000_cold.jsonl` and `results/seed1000_warm.jsonl` (not included in repository due to size)
+- **Analysis Scripts**: All evaluation scripts are in `scripts/eval/`
+- **Reproducibility**: Full evaluation can be reproduced using the scripts and configuration above

@@ -22,8 +22,8 @@ A real-time German fact-checking pipeline using Natural Language Inference (NLI)
 
 ```bash
 # Clone repository
-git clone <repository-url>
-cd factchecker-service
+git clone https://github.com/schmiroBOS99/realtime-automated-factchecker.git
+cd realtime-automated-factchecker
 
 # Create virtual environment
 python -m venv venv
@@ -48,6 +48,37 @@ uvicorn app.main:app --port 8000
 curl -X POST "http://localhost:8000/check" \
      -H "Content-Type: application/json" \
      -d '{"claim": "Berlin ist die Hauptstadt von Deutschland"}'
+```
+
+**Example Response:**
+```json
+{
+  "claim": "Berlin ist die Hauptstadt von Deutschland",
+  "path": "WIKIPEDIA_RETRIEVAL",
+  "relation_type": "geo_location",
+  "parsed_claim": {
+    "subject": "Berlin",
+    "predicate": "ist",
+    "object": "Deutschland",
+    "canonical_claim": "berlin ist hauptstadt deutschland"
+  },
+  "label": "SUPPORTED",
+  "answer": "Die Behauptung ist korrekt. Berlin ist die Hauptstadt von Deutschland.",
+  "best_evidence": {
+    "title": "Berlin",
+    "url": "https://de.wikipedia.org/wiki/Berlin",
+    "snippet": "Berlin ist die Hauptstadt und ein Land der Bundesrepublik Deutschland.",
+    "source": "wikipedia"
+  },
+  "scores": [
+    {
+      "entailment": 0.92,
+      "contradiction": 0.05,
+      "neutral": 0.03
+    }
+  ],
+  "evidence_count": 5
+}
 ```
 
 ### Detect claim structure (without verification)
@@ -144,8 +175,36 @@ See `EVALUATION.md` for detailed evaluation results including:
 
 ## 📝 License
 
-This project is for academic/research purposes.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 📚 Documentation
+
+- [EVALUATION.md](EVALUATION.md) - Detailed evaluation results and methodology
+- [CONTRIBUTING.md](CONTRIBUTING.md) - Contribution guidelines
+- API Documentation: Available at `http://localhost:8000/docs` when server is running (FastAPI auto-generated OpenAPI docs)
+
+## 🔗 Model Licenses
+
+- **NLI Model**: `cross-encoder/nli-deberta-v3-base` - Apache 2.0 License
+- **Embedding Model**: `paraphrase-multilingual-MiniLM-L12-v2` - Apache 2.0 License
+- Models are automatically downloaded from Hugging Face on first use
+
+## ⚠️ Rate Limiting & API Keys
+
+- **Wikipedia API**: No API key required, but please respect rate limits (see [Wikimedia API Terms](https://www.mediawiki.org/wiki/API:Etiquette))
+- **Wikidata API**: No API key required, but please respect rate limits
+- **Caching**: All API responses are cached for 6 hours (TTL) to minimize API calls
+- **PII Handling**: The system does not store or log personally identifiable information from claims
+
+## 🧪 Testing
+
+Run the test suite:
+```bash
+pytest tests/
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for more details on testing and development.
 
 ## 👤 Author
 
-[Your Name/Contact]
+Maro Schmitt Rodrigues - maro.schmitt_rodrigues@student.reutlingen-university.de
