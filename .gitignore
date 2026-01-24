@@ -56,10 +56,13 @@ logs/
 .env.local
 
 # ===== EXCLUDE FOR GITHUB =====
-# Documentation files (except README.md and EVALUATION.md)
+# Documentation files (except important docs)
 *.md
 !README.md
 !EVALUATION.md
+!QUICK_START.md
+!README_DEPLOYMENT.md
+!CONTRIBUTING.md
 
 # Evaluation results and data
 results/
