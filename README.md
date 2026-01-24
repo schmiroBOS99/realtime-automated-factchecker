@@ -36,11 +36,35 @@ pip install -r app/requirements.txt
 
 ## 🚦 Quick Start
 
-### Start the API server
+### Option 1: Docker Compose (Empfohlen - Einfachste Methode)
 
 ```bash
+# Repository klonen
+git clone https://github.com/schmiroBOS99/realtime-automated-factchecker.git
+cd realtime-automated-factchecker
+
+# Service starten (lädt automatisch alle Dependencies)
+docker-compose up
+```
+
+Der Service ist dann unter **http://localhost:8000** erreichbar. Öffne die URL im Browser für die UI.
+
+### Option 2: Lokale Installation
+
+```bash
+# Virtual Environment erstellen
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+# venv\Scripts\activate   # Windows
+
+# Dependencies installieren
+pip install -r app/requirements.txt
+
+# Server starten
 uvicorn app.main:app --port 8000
 ```
+
+**Für Professoren:** Siehe [README_DEPLOYMENT.md](README_DEPLOYMENT.md) für Cloud-Deployment-Optionen (keine Installation nötig).
 
 ### Check a claim
 
@@ -172,6 +196,12 @@ See `EVALUATION.md` for detailed evaluation results including:
 - `POST /detect` - Detect claim structure (without verification)
 - `DELETE /cache/clear` - Clear all caches
 - `WS /ws/live` - WebSocket for live transcription
+
+## 🚀 Quick Deployment
+
+**Für Professoren & Demo:** Siehe [QUICK_START.md](QUICK_START.md) für die einfachste Bereitstellung ohne Installation (Cloud Deployment).
+
+**Für Entwickler:** Siehe [README_DEPLOYMENT.md](README_DEPLOYMENT.md) für alle Deployment-Optionen.
 
 ## 📝 License
 
