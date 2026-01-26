@@ -66,6 +66,8 @@ logs/
 
 # Evaluation results and data
 results/
+!results/seed_50*.jsonl
+!results/seed1000*.jsonl
 data/eval/
 
 # Archive/old versions
