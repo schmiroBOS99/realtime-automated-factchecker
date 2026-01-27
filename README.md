@@ -49,6 +49,8 @@ docker-compose up
 
 Der Service ist dann unter **http://localhost:8000** erreichbar. Öffne die URL im Browser für die UI.
 
+> 📘 **Für Professoren:** Siehe [ANLEITUNG_FUER_PROFESSOREN.md](ANLEITUNG_FUER_PROFESSOREN.md) für eine detaillierte Schritt-für-Schritt-Anleitung ohne technisches Vorwissen.
+
 ### Option 2: Lokale Installation
 
 ```bash
@@ -64,7 +66,7 @@ pip install -r app/requirements.txt
 uvicorn app.main:app --port 8000
 ```
 
-**Für Professoren:** Siehe [README_DEPLOYMENT.md](README_DEPLOYMENT.md) für Cloud-Deployment-Optionen (keine Installation nötig).
+**Für Professoren:** Siehe [ANLEITUNG_FUER_PROFESSOREN.md](ANLEITUNG_FUER_PROFESSOREN.md) für eine einfache Schritt-für-Schritt-Anleitung.
 
 ### Check a claim
 
@@ -199,9 +201,7 @@ See `EVALUATION.md` for detailed evaluation results including:
 
 ## 🚀 Quick Deployment
 
-**Für Professoren & Demo:** Siehe [QUICK_START.md](QUICK_START.md) für die einfachste Bereitstellung ohne Installation (Cloud Deployment).
-
-**Für Entwickler:** Siehe [README_DEPLOYMENT.md](README_DEPLOYMENT.md) für alle Deployment-Optionen.
+**Für Professoren & Demo:** Siehe [QUICK_START.md](QUICK_START.md) für die einfachste Bereitstellung mit Docker.
 
 ## 📝 License
 
