@@ -6,9 +6,9 @@
 
 ### Voraussetzung: Docker Desktop installieren
 
-1. **Gehe zu:** https://www.docker.com/products/docker-desktop
-2. **Lade Docker Desktop herunter** und installiere es
-3. **Starte Docker Desktop** (muss laufen, bevor Sie den Service starten)
+1. **Gehen Sie zu:** https://www.docker.com/products/docker-desktop
+2. **Laden Sie Docker Desktop herunter** und installieren Sie es
+3. **Starten Sie Docker Desktop** (muss laufen, bevor Sie den Service starten)
 
 ### Service starten
 
@@ -27,10 +27,10 @@ docker-compose up
 
 ## 📱 UI verwenden
 
-1. Öffne die URL im Browser (Railway/Render URL oder http://localhost:8000)
+1. Öffnen Sie die URL im Browser (http://localhost:8000)
 2. Die Fact-Checker UI wird automatisch geladen
-3. Gib einen Claim ein (z.B. "Berlin ist die Hauptstadt von Deutschland")
-4. Klicke auf "Check" oder nutze die Live-Transkription
+3. Geben Sie einen Claim ein (z.B. "Berlin ist die Hauptstadt von Deutschland")
+4. Klicken Sie auf "Check" oder nutzen Sie die Live-Transkription
 
 ## 🔧 API direkt testen
 
@@ -49,4 +49,4 @@ curl -X POST http://localhost:8000/check \
 Bei Problemen:
 - Siehe [README.md](README.md) für detaillierte Dokumentation
 - Siehe [README_DEPLOYMENT.md](README_DEPLOYMENT.md) für Deployment-Optionen
-- Öffne ein Issue auf GitHub
+- Öffnen Sie ein Issue auf GitHub
