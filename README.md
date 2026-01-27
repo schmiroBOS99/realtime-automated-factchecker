@@ -210,7 +210,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 📚 Documentation
 
 - [EVALUATION.md](EVALUATION.md) - Detailed evaluation results and methodology
-- [CONTRIBUTING.md](CONTRIBUTING.md) - Contribution guidelines
 - API Documentation: Available at `http://localhost:8000/docs` when server is running (FastAPI auto-generated OpenAPI docs)
 
 ## 🔗 Model Licenses
