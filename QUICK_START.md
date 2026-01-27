@@ -1,45 +1,29 @@
 # Quick Start für Professoren
 
-## 🎯 Einfachste Methode: Cloud Deployment (Keine Installation!)
+**Für eine detaillierte Schritt-für-Schritt-Anleitung siehe:** [ANLEITUNG_FUER_PROFESSOREN.md](ANLEITUNG_FUER_PROFESSOREN.md)
 
-### Railway.app (Empfohlen)
+## 🐳 Docker Compose (Empfohlene Methode)
 
-1. **Gehe zu:** https://railway.app
-2. **Klicke:** "New Project" → "Deploy from GitHub repo"
-3. **Wähle:** Dieses Repository (`schmiroBOS99/realtime-automated-factchecker`)
-4. **Warte:** 5-10 Minuten (Railway baut automatisch das Docker-Image)
-5. **Fertig!** Service ist live unter einer Railway-URL (z.B. `https://factchecker-production.up.railway.app`)
+### Voraussetzung: Docker Desktop installieren
 
-**Vorteile:**
-- ✅ Keine Installation nötig
-- ✅ Direkt im Browser testbar
-- ✅ Automatische Updates bei Git Push
-- ✅ Kostenlos für kleine Projekte
+1. **Gehe zu:** https://www.docker.com/products/docker-desktop
+2. **Lade Docker Desktop herunter** und installiere es
+3. **Starte Docker Desktop** (muss laufen, bevor Sie den Service starten)
 
-### Alternative: Render.com
-
-1. **Gehe zu:** https://render.com
-2. **Klicke:** "New" → "Web Service"
-3. **Verbinde:** GitHub Repository
-4. **Wähle:** Branch `main`
-5. **Build Command:** (automatisch erkannt)
-6. **Start Command:** (automatisch erkannt)
-7. **Fertig!** Service ist live unter einer Render-URL
-
-## 🐳 Alternative: Docker Compose (Lokal)
-
-**Voraussetzung:** Docker Desktop installiert (https://www.docker.com/products/docker-desktop)
+### Service starten
 
 ```bash
-# Repository klonen
+# 1. Repository klonen
 git clone https://github.com/schmiroBOS99/realtime-automated-factchecker.git
 cd realtime-automated-factchecker
 
-# Service starten
+# 2. Service starten
 docker-compose up
 ```
 
 **Service erreichbar unter:** http://localhost:8000
+
+> ⚠️ **Beim ersten Start:** Docker lädt alle Modelle herunter (5-10 Minuten). Lassen Sie das Terminal-Fenster geöffnet!
 
 ## 📱 UI verwenden
 
