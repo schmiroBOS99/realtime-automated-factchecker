@@ -2,6 +2,41 @@
 
 A real-time German fact-checking pipeline using Natural Language Inference (NLI) and hybrid retrieval from Wikipedia and Wikidata.
 
+## Überblick
+
+Dieses Repository enthält den Prototyp meiner Masterarbeit (M.Sc. Digital Business Engineering, Hochschule Reutlingen): einen Dienst, der deutschsprachige Aussagen automatisch gegen Wikipedia und Wikidata prüft und mit `SUPPORTED`, `REFUTED` oder `NOT_ENOUGH_INFO` bewertet. Aussagen können als Text oder live aus einem Audiostrom kommen.
+
+**Ablauf einer Prüfung**
+
+1. Die Aussage wird zerlegt (Subjekt, Prädikat, Objekt), subjektive Aussagen werden herausgefiltert.
+2. Belege kommen aus Wikidata (strukturierte Daten) und Wikipedia (Satzebene) und werden per Reranking sortiert.
+3. Ein NLI-Modell (`cross-encoder/nli-deberta-v3-base`) prüft jeden Beleg gegen die Aussage, mehrere Belege werden zusammengeführt.
+4. Fachspezifische Nachprüfungen schärfen das Ergebnis, zum Beispiel für Zahlenvergleiche, Orte und Jahreszahlen.
+5. Das Ergebnis wird mit dem besten Beleg zurückgegeben. Antworten werden mehrstufig zwischengespeichert.
+
+**Ergebnisse** (1.000 Aussagen aus 13 Themenbereichen, Details in [EVALUATION.md](EVALUATION.md))
+
+| Messgröße | Wert |
+|---|---|
+| Genauigkeit gesamt | 60,1 % |
+| Genauigkeit, wenn sich das System entscheidet (ohne `NOT_ENOUGH_INFO`) | 77,3 % |
+| Bester Bereich: Geografie (Städte) | 83,0 % |
+| Schwächster Bereich: Religion | 44,0 % |
+| Mittlere Latenz ohne Cache / mit Cache | 2.628 ms / 1.030 ms (2,55-fach schneller, 59,1 % Trefferquote) |
+
+**Grenzen:** Das System ist ein Forschungsprototyp. Es ist bewusst konservativ und antwortet bei Unsicherheit mit `NOT_ENOUGH_INFO`. Als Quellen dienen nur Wikipedia und Wikidata. Allgemeinwissen, Religion und allgemeine Politik sind die schwächsten Bereiche, und bei rund 24 % der Fehler wurden keine Belege gefunden.
+
+**Wo man im Code anfängt**
+
+- `app/pipeline/factchecker.py`: Orchestrierung der Pipeline
+- `app/pipeline/claim_parser.py`, `retriever.py`, `verifier.py`: Zerlegen, Belege holen, Prüfen
+- `app/pipeline/cache.py`, `claim_matcher.py`: Zwischenspeicherung
+- `app/pipeline/eval/`: Auswertung der Messungen
+- `app/realtime/` und `app/api/ws_live.py`: Live-Verarbeitung
+- `tests/`: Tests für Parser und Vergleichsprüfung (`pytest tests/`)
+
+---
+
 ## 🚀 Features
 
 - **Claim Detection & Filtering**: Identifies factual claims and filters out subjective/opinion statements
@@ -49,7 +84,6 @@ docker-compose up
 
 Der Service ist dann unter **http://localhost:8000** erreichbar. Öffne die URL im Browser für die UI.
 
-> 📘 **Für Professoren:** Siehe [ANLEITUNG_FUER_PROFESSOREN.md](ANLEITUNG_FUER_PROFESSOREN.md) für eine detaillierte Schritt-für-Schritt-Anleitung ohne technisches Vorwissen.
 
 ### Option 2: Lokale Installation
 
@@ -66,7 +100,6 @@ pip install -r app/requirements.txt
 uvicorn app.main:app --port 8000
 ```
 
-**Für Professoren:** Siehe [ANLEITUNG_FUER_PROFESSOREN.md](ANLEITUNG_FUER_PROFESSOREN.md) für eine einfache Schritt-für-Schritt-Anleitung.
 
 ### Check a claim
 
@@ -201,7 +234,7 @@ See `EVALUATION.md` for detailed evaluation results including:
 
 ## 🚀 Quick Deployment
 
-**Für Professoren & Demo:** Siehe [QUICK_START.md](QUICK_START.md) für die einfachste Bereitstellung mit Docker.
+Siehe [QUICK_START.md](QUICK_START.md) für die einfachste Bereitstellung mit Docker.
 
 ## 📝 License
 
@@ -232,7 +265,6 @@ Run the test suite:
 pytest tests/
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for more details on testing and development.
 
 ## 👤 Author
 

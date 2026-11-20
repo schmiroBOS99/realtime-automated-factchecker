@@ -1,6 +1,4 @@
-# Quick Start für Professoren
-
-**Für eine detaillierte Schritt-für-Schritt-Anleitung siehe:** [ANLEITUNG_FUER_PROFESSOREN.md](ANLEITUNG_FUER_PROFESSOREN.md)
+# Quick Start
 
 ## 🐳 Docker Compose (Empfohlene Methode)
 
@@ -48,5 +46,4 @@ curl -X POST http://localhost:8000/check \
 
 Bei Problemen:
 - Siehe [README.md](README.md) für detaillierte Dokumentation
-- Siehe [README_DEPLOYMENT.md](README_DEPLOYMENT.md) für Deployment-Optionen
 - Öffnen Sie ein Issue auf GitHub
