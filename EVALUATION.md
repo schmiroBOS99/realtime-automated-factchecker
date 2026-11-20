@@ -94,6 +94,9 @@ This document summarizes the evaluation results of the German Fact-Checking Serv
 ## Reproducibility
 
 ### Evaluation Scripts
+
+> Hinweis: Die Skripte unter `scripts/eval/` sind in diesem Repository nicht enthalten. Der Auswertungs-Harness liegt in `app/pipeline/eval/`, die Datensätze in `claim_databases/`.
+
 - **Batch Fact-Checking**: `scripts/eval/batch_factcheck.py`
 - **Topic Accuracy Analysis**: `scripts/eval/analyze_topic_accuracy.py`
 - **Error Analysis**: `scripts/eval/analyze_phase2_errors.py`
